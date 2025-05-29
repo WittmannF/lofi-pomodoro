@@ -9,6 +9,17 @@ from rich.progress import Progress, TextColumn, BarColumn, TimeRemainingColumn
 import pygame
 
 
+def get_break_sound():
+    """Get the path to the break sound file."""
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sound_path = os.path.join(project_root, "break-sounds", "crickets.mp3")
+
+    if os.path.exists(sound_path):
+        return sound_path
+    print(f"[!] Break sound not found at: {sound_path}")
+    return None
+
+
 def get_default_playlist():
     """Return paths to default lo-fi tracks included in the package."""
     try:
@@ -40,21 +51,27 @@ def load_music_files(folder):
     return [os.path.join(folder, f) for f in files]
 
 
-def music_player_loop(playlist):
-    """Continuously play random tracks from playlist."""
-    if not playlist:
+def music_player_loop(playlist, is_break=False, break_sound=None):
+    """Continuously play random tracks from playlist or break sound."""
+    if not playlist and not is_break:
         return
 
     pygame.mixer.init()
     while True:
-        track = random.choice(playlist)
         try:
-            pygame.mixer.music.load(track)
-            pygame.mixer.music.play()
-            while pygame.mixer.music.get_busy():
-                time.sleep(1)
+            if is_break and break_sound:
+                pygame.mixer.music.load(break_sound)
+                pygame.mixer.music.play(-1)  # Loop the break sound
+                while pygame.mixer.music.get_busy():
+                    time.sleep(1)
+            else:
+                track = random.choice(playlist)
+                pygame.mixer.music.load(track)
+                pygame.mixer.music.play()
+                while pygame.mixer.music.get_busy():
+                    time.sleep(1)
         except Exception as e:
-            print(f"[!] Couldn't play {track}: {e}")
+            print(f"[!] Couldn't play sound: {e}")
             time.sleep(1)
 
 
@@ -63,13 +80,13 @@ def beep():
     print("\a", end="", flush=True)
 
 
-def run_cycle(work_sec, break_sec, playlist):
+def run_cycle(work_sec, break_sec, playlist, break_sound):
     """Run a single work→break cycle."""
     # Start music thread if we have a playlist
     music_thread = None
-    if playlist:
+    if playlist or break_sound:
         music_thread = threading.Thread(
-            target=music_player_loop, args=(playlist,), daemon=True
+            target=music_player_loop, args=(playlist, False, break_sound), daemon=True
         )
         music_thread.start()
 
@@ -85,8 +102,16 @@ def run_cycle(work_sec, break_sec, playlist):
             progress.update(task, advance=1)
 
     # switch to break: stop music, beep
-    if playlist:
+    if playlist or break_sound:
         pygame.mixer.music.stop()
+        # Start break sound
+        if break_sound:
+            music_thread = threading.Thread(
+                target=music_player_loop,
+                args=(playlist, True, break_sound),
+                daemon=True,
+            )
+            music_thread.start()
     beep()
     print("\n🛀  Time for a break!\n")
 
@@ -101,6 +126,9 @@ def run_cycle(work_sec, break_sec, playlist):
             time.sleep(1)
             progress.update(task, advance=1)
 
+    # Stop break sound
+    if break_sound:
+        pygame.mixer.music.stop()
     beep()
     print("\n✅  Break over — back to work!\n")
 
@@ -138,9 +166,14 @@ def main():
         if not playlist:
             print("No default playlist found. Running without music.")
 
+    # Get break sound
+    break_sound = get_break_sound()
+    if not break_sound:
+        print("Running without break sound effect.")
+
     for i in range(1, args.cycles + 1):
         print(f"\n🔄  Cycle {i} of {args.cycles}")
-        run_cycle(args.work * 60, args.short * 60, playlist)
+        run_cycle(args.work * 60, args.short * 60, playlist, break_sound)
 
     # final long break
     print(f"\n🎉  {args.cycles} cycles done—enjoy a longer break!")
