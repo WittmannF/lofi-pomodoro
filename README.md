@@ -16,13 +16,7 @@ A simple, relaxing CLI Pomodoro timer that plays lo-fi beats during work session
 
 ## Installation
 
-Install from PyPI:
-
-```bash
-pip install lofi-pomodoro
-```
-
-Or clone the repository and install locally:
+Clone the repository and install locally:
 
 ```bash
 git clone https://github.com/WittmannF/lofi-pomodoro.git
