@@ -80,7 +80,7 @@ def beep():
     print("\a", end="", flush=True)
 
 
-def run_cycle(work_sec, break_sec, playlist, break_sound):
+def run_cycle(work_sec, break_sec, playlist, break_sound, remaining_work_sec=None):
     """Run a single work→break cycle."""
     # Start music thread if we have a playlist
     music_thread = None
@@ -96,7 +96,9 @@ def run_cycle(work_sec, break_sec, playlist, break_sound):
         BarColumn(),
         TimeRemainingColumn(),
     ) as progress:
-        task = progress.add_task("", total=work_sec)
+        # Use remaining time if provided, otherwise use full work time
+        total_work = remaining_work_sec if remaining_work_sec is not None else work_sec
+        task = progress.add_task("", total=total_work)
         while not progress.finished:
             time.sleep(1)
             progress.update(task, advance=1)
@@ -135,45 +137,91 @@ def run_cycle(work_sec, break_sec, playlist, break_sound):
 
 def main():
     p = argparse.ArgumentParser(description="CLI Lofi Pomodoro Timer")
-    p.add_argument("--work", type=int, default=25, help="work minutes (default: 25)")
     p.add_argument(
-        "--short", type=int, default=5, help="short break minutes (default: 5)"
+        "--work", type=int, default=25, help="work duration in minutes (default: 25)"
     )
     p.add_argument(
-        "--long", type=int, default=15, help="long break minutes (default: 15)"
+        "--short",
+        type=int,
+        default=5,
+        help="short break duration in minutes (default: 5)",
+    )
+    p.add_argument(
+        "--long",
+        type=int,
+        default=15,
+        help="long break duration in minutes (default: 15)",
     )
     p.add_argument(
         "--cycles",
         type=int,
         default=4,
-        help="number of work/break cycles before long break",
+        help="number of work/break cycles before a long break (default: 4)",
     )
     p.add_argument(
         "--music-folder",
         type=str,
         help="path to folder with your lofi tracks (optional)",
     )
+    p.add_argument(
+        "--resume",
+        type=int,
+        help="resume with X minutes remaining in the first work cycle",
+    )
+    p.add_argument(
+        "--no-break-sound",
+        action="store_true",
+        help="disable the break sound effect",
+    )
+    p.add_argument(
+        "--no-work-music",
+        action="store_true",
+        help="disable the work music",
+    )
+    p.add_argument(
+        "--volume",
+        type=float,
+        default=1.0,
+        help="set the volume (0.0 to 1.0, default: 1.0)",
+    )
     args = p.parse_args()
+
+    # Validate volume
+    if not 0.0 <= args.volume <= 1.0:
+        print("[!] Volume must be between 0.0 and 1.0")
+        return
 
     # Get playlist from user folder or default
     playlist = []
-    if args.music_folder:
-        playlist = load_music_files(args.music_folder)
-        if not playlist:
-            print(f"No audio files found in {args.music_folder}")
-    else:
-        playlist = get_default_playlist()
-        if not playlist:
-            print("No default playlist found. Running without music.")
+    if not args.no_work_music:
+        if args.music_folder:
+            playlist = load_music_files(args.music_folder)
+            if not playlist:
+                print(f"No audio files found in {args.music_folder}")
+        else:
+            playlist = get_default_playlist()
+            if not playlist:
+                print("No default playlist found. Running without music.")
 
     # Get break sound
-    break_sound = get_break_sound()
-    if not break_sound:
+    break_sound = None if args.no_break_sound else get_break_sound()
+    if not break_sound and not args.no_break_sound:
         print("Running without break sound effect.")
+
+    # Convert resume time to seconds if provided
+    remaining_work_sec = args.resume * 60 if args.resume is not None else None
+    if remaining_work_sec is not None:
+        print(f"\n⏱️  Resuming with {args.resume} minutes remaining in first work cycle")
+
+    # Initialize pygame mixer with volume
+    pygame.mixer.init()
+    pygame.mixer.music.set_volume(args.volume)
 
     for i in range(1, args.cycles + 1):
         print(f"\n🔄  Cycle {i} of {args.cycles}")
-        run_cycle(args.work * 60, args.short * 60, playlist, break_sound)
+        # Only use remaining time for the first cycle
+        remaining = remaining_work_sec if i == 1 else None
+        run_cycle(args.work * 60, args.short * 60, playlist, break_sound, remaining)
 
     # final long break
     print(f"\n🎉  {args.cycles} cycles done—enjoy a longer break!")
