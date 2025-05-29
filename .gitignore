@@ -9,7 +9,6 @@ __pycache__/
 # macOS
 .DS_Store
 
-*.mp3
 # Distribution / packaging
 .Python
 build/
