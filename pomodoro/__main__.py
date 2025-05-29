@@ -57,6 +57,8 @@ def music_player_loop(playlist, is_break=False, break_sound=None):
         return
 
     pygame.mixer.init()
+    played_tracks = set()  # Keep track of played tracks in current session
+
     while True:
         try:
             if is_break and break_sound:
@@ -65,7 +67,16 @@ def music_player_loop(playlist, is_break=False, break_sound=None):
                 while pygame.mixer.music.get_busy():
                     time.sleep(1)
             else:
-                track = random.choice(playlist)
+                # If all tracks have been played, reset the played tracks
+                if len(played_tracks) == len(playlist):
+                    played_tracks.clear()
+                    print("\n🔄  Playlist completed, starting over...")
+
+                # Get a track that hasn't been played yet
+                available_tracks = [t for t in playlist if t not in played_tracks]
+                track = random.choice(available_tracks)
+                played_tracks.add(track)
+
                 pygame.mixer.music.load(track)
                 pygame.mixer.music.play()
                 while pygame.mixer.music.get_busy():
