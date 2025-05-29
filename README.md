@@ -13,10 +13,17 @@ A simple, relaxing CLI Pomodoro timer that plays lo-fi beats during work session
 * **Break Sounds**: Different ambient sounds during work and break periods.
 * **Session Resume**: Resume a session from where you left off using the `--resume` option.
 * **Audio Control**: Adjust volume and toggle work music/break sounds independently.
+* **Music Controls**: Press 's' to skip to the next track during work sessions.
 
 ## Installation
 
-Clone the repository and install locally:
+Install from PyPI:
+
+```bash
+pip install lofi-pomodoro
+```
+
+Or clone the repository and install locally:
 
 ```bash
 git clone https://github.com/WittmannF/lofi-pomodoro.git
@@ -61,6 +68,13 @@ Run without music or break sounds:
 ```bash
 lofi-pomodoro --no-work-music --no-break-sound  # Run silently
 ```
+
+### Music Controls
+
+During work sessions, you can control the music playback:
+- Press `s` to skip to the next track
+- The current track name is displayed when it starts playing
+- Tracks won't repeat until all tracks have been played
 
 ### Command-Line Arguments
 

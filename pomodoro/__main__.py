@@ -4,6 +4,10 @@ import time
 import random
 import threading
 import argparse
+import queue
+from pynput import keyboard
+from pynput.keyboard import Key, Controller
+import psutil
 
 from rich.progress import Progress, TextColumn, BarColumn, TimeRemainingColumn
 import pygame
@@ -51,7 +55,7 @@ def load_music_files(folder):
     return [os.path.join(folder, f) for f in files]
 
 
-def music_player_loop(playlist, is_break=False, break_sound=None):
+def music_player_loop(playlist, is_break=False, break_sound=None, skip_queue=None):
     """Continuously play random tracks from playlist or break sound."""
     if not playlist and not is_break:
         return
@@ -65,6 +69,10 @@ def music_player_loop(playlist, is_break=False, break_sound=None):
                 pygame.mixer.music.load(break_sound)
                 pygame.mixer.music.play(-1)  # Loop the break sound
                 while pygame.mixer.music.get_busy():
+                    # Check for skip command
+                    if skip_queue and not skip_queue.empty():
+                        skip_queue.get()  # Clear the queue
+                        break
                     time.sleep(1)
             else:
                 # If all tracks have been played, reset the played tracks
@@ -77,9 +85,14 @@ def music_player_loop(playlist, is_break=False, break_sound=None):
                 track = random.choice(available_tracks)
                 played_tracks.add(track)
 
+                print(f"\n🎵  Now playing: {os.path.basename(track)}")
                 pygame.mixer.music.load(track)
                 pygame.mixer.music.play()
                 while pygame.mixer.music.get_busy():
+                    # Check for skip command
+                    if skip_queue and not skip_queue.empty():
+                        skip_queue.get()  # Clear the queue
+                        break
                     time.sleep(1)
         except Exception as e:
             print(f"[!] Couldn't play sound: {e}")
@@ -91,15 +104,57 @@ def beep():
     print("\a", end="", flush=True)
 
 
+def is_terminal_active():
+    """Check if the terminal window running this process is active."""
+    try:
+        # Get the current process
+        current_process = psutil.Process()
+
+        # Get the parent process (terminal)
+        parent = current_process.parent()
+        if parent is None:
+            return False
+
+        # Check if the parent process is a terminal
+        return parent.name().lower() in [
+            "iterm2",
+            "terminal",
+            "iTerm",
+            "Apple_Terminal",
+        ]
+    except:
+        return False
+
+
 def run_cycle(work_sec, break_sec, playlist, break_sound, remaining_work_sec=None):
     """Run a single work→break cycle."""
+    # Create a queue for skip commands
+    skip_queue = queue.Queue()
+
     # Start music thread if we have a playlist
     music_thread = None
     if playlist or break_sound:
         music_thread = threading.Thread(
-            target=music_player_loop, args=(playlist, False, break_sound), daemon=True
+            target=music_player_loop,
+            args=(playlist, False, break_sound, skip_queue),
+            daemon=True,
         )
         music_thread.start()
+
+    # Set up keyboard listener for skip command
+    def on_press(key):
+        try:
+            if key.char == "s":
+                # Only process skip if the terminal is active
+                if is_terminal_active():
+                    skip_queue.put(True)
+                    print("\n⏭️  Skipping to next track...")
+        except AttributeError:
+            pass  # Ignore non-character keys
+
+    # Start keyboard listener
+    listener = keyboard.Listener(on_press=on_press)
+    listener.start()
 
     # WORK PHASE
     with Progress(
@@ -114,6 +169,9 @@ def run_cycle(work_sec, break_sec, playlist, break_sound, remaining_work_sec=Non
             time.sleep(1)
             progress.update(task, advance=1)
 
+    # Stop keyboard listener
+    listener.stop()
+
     # switch to break: stop music, beep
     if playlist or break_sound:
         pygame.mixer.music.stop()
@@ -121,7 +179,7 @@ def run_cycle(work_sec, break_sec, playlist, break_sound, remaining_work_sec=Non
         if break_sound:
             music_thread = threading.Thread(
                 target=music_player_loop,
-                args=(playlist, True, break_sound),
+                args=(playlist, True, break_sound, skip_queue),
                 daemon=True,
             )
             music_thread.start()
@@ -227,6 +285,8 @@ def main():
     # Initialize pygame mixer with volume
     pygame.mixer.init()
     pygame.mixer.music.set_volume(args.volume)
+
+    print("\n🎹  Press 's' to skip to the next track")
 
     for i in range(1, args.cycles + 1):
         print(f"\n🔄  Cycle {i} of {args.cycles}")
