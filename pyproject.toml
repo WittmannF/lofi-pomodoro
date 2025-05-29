@@ -5,13 +5,13 @@ build-backend = "hatchling.build"
 [project]
 name = "pomodoro"
 version = "0.1.0"
-description = "A simple, relaxing CLI Pomodoro timer that plays lo-fi beats during work sessions"
-readme = "README.md"
-requires-python = ">=3.7"
-license = "MIT"
 authors = [
     { name = "Your Name", email = "your.email@example.com" }
 ]
+description = "A CLI Pomodoro timer with lofi music"
+readme = "README.md"
+requires-python = ">=3.7"
+license = "MIT"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
@@ -29,6 +29,8 @@ keywords = ["pomodoro", "timer", "productivity", "lofi", "music"]
 dependencies = [
     "rich>=10.0.0",
     "pygame>=2.0.0",
+    "pynput",
+    "psutil>=5.9.0",
 ]
 
 [project.urls]
@@ -37,7 +39,7 @@ Repository = "https://github.com/WittmannF/lofi-pomodoro.git"
 "Bug Tracker" = "https://github.com/WittmannF/lofi-pomodoro/issues"
 
 [project.scripts]
-lofi-pomodoro = "pomodoro:main"
+pomodoro = "pomodoro.__main__:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["pomodoro"]
