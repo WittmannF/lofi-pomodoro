@@ -20,15 +20,58 @@ import time
 from rich.progress import Progress, TextColumn, BarColumn, TimeRemainingColumn
 import pygame
 
+# Global variables
+SUPPORTED_AUDIO_EXTENSIONS = (".mp3", ".wav", ".ogg")
+
+# Break sound options mapping
+BREAK_SOUND_OPTIONS = {
+    "rain": "rain.mp3",
+    "fireplace": "fireplace.mp3",
+    "wind": "wind.mp3",
+    "soft-wind": "soft-wind.mp3",
+    # "random": None,  # Placeholder for random sound
+}
+
 
 # --------------------------------------------------------------------------- #
 #                               FILE HELPERS                                  #
 # --------------------------------------------------------------------------- #
-def get_break_sound() -> str | None:
-    """Return path to the bundled break sound (or None if missing)."""
+def get_break_sound(break_sound_option: str | None = None) -> str | None:
+    """
+    Return path to the break sound based on the option or custom path.
+
+    Args:
+        break_sound_option: Either a predefined option name, a custom path, or None for default
+
+    Returns:
+        Path to the break sound file or None if not found
+    """
     project_root = os.path.dirname(os.path.abspath(__file__))
-    sound_path = os.path.join(project_root, "break-sounds", "crickets.mp3")
-    return sound_path if os.path.exists(sound_path) else None
+    break_sounds_dir = os.path.join(project_root, "break-sounds")
+
+    # If no option provided, use default (rain)
+    if break_sound_option is None:
+        break_sound_option = "rain"
+
+    # Check if the option is a custom path (has audio extension)
+    if any(
+        break_sound_option.lower().endswith(ext) for ext in SUPPORTED_AUDIO_EXTENSIONS
+    ):
+        # If it's an absolute path, use it directly
+        if os.path.isabs(break_sound_option):
+            return break_sound_option if os.path.exists(break_sound_option) else None
+        # Otherwise, look in the break-sounds directory
+        sound_path = os.path.join(break_sounds_dir, break_sound_option)
+        return sound_path if os.path.exists(sound_path) else None
+
+    # Handle predefined options
+    if break_sound_option in BREAK_SOUND_OPTIONS:
+        sound_path = os.path.join(
+            break_sounds_dir, BREAK_SOUND_OPTIONS[break_sound_option]
+        )
+        return sound_path if os.path.exists(sound_path) else None
+
+    return None
 
 
 def load_music_files(folder: str) -> list[str]:
@@ -37,8 +80,9 @@ def load_music_files(folder: str) -> list[str]:
         print(f"[!] Music folder not found: {folder}")
         return []
 
-    exts = (".mp3", ".wav", ".ogg")
-    files = [f for f in os.listdir(folder) if f.lower().endswith(exts)]
+    files = [
+        f for f in os.listdir(folder) if f.lower().endswith(SUPPORTED_AUDIO_EXTENSIONS)
+    ]
     if not files:
         print(f"[!] No audio files in: {folder}")
         return []
@@ -90,7 +134,7 @@ def music_player_loop(
             pygame.mixer.music.load(track)
             pygame.mixer.music.play()
         except Exception as exc:  # noqa: BLE001
-            print(f"[!] Couldn’t play {track}: {exc}")
+            print(f"[!] Couldn't play {track}: {exc}")
             time.sleep(1)
             continue
 
@@ -196,7 +240,7 @@ def run_cycle(
             pygame.mixer.music.load(break_sound)
             pygame.mixer.music.play(-1)
         except Exception as exc:  # noqa: BLE001
-            print(f"[!] Couldn’t play break sound: {exc}")
+            print(f"[!] Couldn't play break sound: {exc}")
 
     run_phase("Break", break_sec)
 
@@ -220,7 +264,15 @@ def main() -> None:
         "--no-work-music", action="store_true", help="disable music during work"
     )
     parser.add_argument(
-        "--no-break-sound", action="store_true", help="disable crickets in breaks"
+        "--no-break-sound", action="store_true", help="disable sound in breaks"
+    )
+    parser.add_argument(
+        "--break-sound",
+        type=str,
+        default="rain",
+        help="break sound to use (default: rain). Can be one of: "
+        + ", ".join(BREAK_SOUND_OPTIONS.keys())
+        + ", or a path to a custom sound file",
     )
     parser.add_argument(
         "--volume", type=float, default=1.0, help="volume 0.0–1.0 (1.0)"
@@ -241,9 +293,9 @@ def main() -> None:
         if not playlist:
             print("[!] No tracks found – running without work music.")
 
-    break_sound = None if args.no_break_sound else get_break_sound()
+    break_sound = None if args.no_break_sound else get_break_sound(args.break_sound)
     if not break_sound and not args.no_break_sound:
-        print("[!] Break sound missing – muted breaks.")
+        print(f"[!] Break sound '{args.break_sound}' not found – muted breaks.")
 
     pygame.mixer.init()
     pygame.mixer.music.set_volume(args.volume)
