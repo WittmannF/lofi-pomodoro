@@ -218,6 +218,7 @@ def run_cycle(
     playlist: list[str],
     break_sound: str | None,
     skip_queue: queue.Queue,
+    remaining_work_sec: int | None = None,
 ) -> None:
     """Single work → break cycle."""
     # ---- Work Phase ----
@@ -228,7 +229,9 @@ def run_cycle(
     )
     music_thread.start()
 
-    run_phase("Work", work_sec)
+    # Use remaining time if provided, otherwise use full work time
+    total_work = remaining_work_sec if remaining_work_sec is not None else work_sec
+    run_phase("Work", total_work)
 
     pygame.mixer.music.stop()
     beep()
@@ -277,10 +280,20 @@ def main() -> None:
     parser.add_argument(
         "--volume", type=float, default=1.0, help="volume 0.0–1.0 (1.0)"
     )
+    parser.add_argument(
+        "--resume",
+        type=int,
+        help="resume with X minutes remaining in the first work cycle",
+    )
     args = parser.parse_args()
 
     if not 0.0 <= args.volume <= 1.0:
         parser.error("Volume must be between 0.0 and 1.0")
+
+    # Convert resume time to seconds if provided
+    remaining_work_sec = args.resume * 60 if args.resume is not None else None
+    if remaining_work_sec is not None:
+        print(f"\n⏱️  Resuming with {args.resume} minutes remaining in first work cycle")
 
     # ---------- Load audio ----------
     playlist: list[str] = []
@@ -309,12 +322,15 @@ def main() -> None:
     # ---------- Cycles ----------
     for cycle in range(1, args.cycles + 1):
         print(f"\n🔄  Cycle {cycle} of {args.cycles}")
+        # Only use remaining time for the first cycle
+        remaining = remaining_work_sec if cycle == 1 else None
         run_cycle(
             args.work * 60,
             args.short * 60,
             playlist,
             break_sound,
             skip_queue,
+            remaining,
         )
 
     # ---------- Long break ----------
