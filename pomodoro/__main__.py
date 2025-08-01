@@ -29,7 +29,7 @@ BREAK_SOUND_OPTIONS = {
     "fireplace": "fireplace.mp3",
     "wind": "wind.mp3",
     "soft-wind": "soft-wind.mp3",
-    # "random": None,  # Placeholder for random sound
+    "random": None,  # Placeholder for random sound
 }
 
 # Ignored songs file
@@ -52,9 +52,9 @@ def get_break_sound(break_sound_option: str | None = None) -> str | None:
     project_root = os.path.dirname(os.path.abspath(__file__))
     break_sounds_dir = os.path.join(project_root, "break-sounds")
 
-    # If no option provided, use default (rain)
+    # If no option provided, use default (random)
     if break_sound_option is None:
-        break_sound_option = "rain"
+        break_sound_option = "random"
 
     # Check if the option is a custom path (has audio extension)
     if any(
@@ -69,10 +69,24 @@ def get_break_sound(break_sound_option: str | None = None) -> str | None:
 
     # Handle predefined options
     if break_sound_option in BREAK_SOUND_OPTIONS:
-        sound_path = os.path.join(
-            break_sounds_dir, BREAK_SOUND_OPTIONS[break_sound_option]
-        )
-        return sound_path if os.path.exists(sound_path) else None
+        if break_sound_option == "random":
+            # Select a random break sound from available options
+            available_options = [
+                opt for opt in BREAK_SOUND_OPTIONS.keys() if opt != "random"
+            ]
+            if available_options:
+                random_option = random.choice(available_options)
+                sound_path = os.path.join(
+                    break_sounds_dir, BREAK_SOUND_OPTIONS[random_option]
+                )
+                return sound_path if os.path.exists(sound_path) else None
+            else:
+                return None
+        else:
+            sound_path = os.path.join(
+                break_sounds_dir, BREAK_SOUND_OPTIONS[break_sound_option]
+            )
+            return sound_path if os.path.exists(sound_path) else None
 
     return None
 
@@ -362,8 +376,8 @@ def main() -> None:
     parser.add_argument(
         "--break-sound",
         type=str,
-        default="rain",
-        help="break sound to use (default: rain). Can be one of: "
+        default="random",
+        help="break sound to use (default: random). Can be one of: "
         + ", ".join(BREAK_SOUND_OPTIONS.keys())
         + ", or a path to a custom sound file",
     )
