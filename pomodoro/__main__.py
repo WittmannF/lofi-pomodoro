@@ -247,7 +247,7 @@ def music_player_loop(
 # --------------------------------------------------------------------------- #
 #                           CROSS-PLATFORM KEY LISTENER                       #
 # --------------------------------------------------------------------------- #
-def start_key_listener(control_queue: queue.Queue, stop_event: threading.Event) -> None:
+def start_key_listener(queues: list[queue.Queue], stop_event: threading.Event) -> None:
     """
     Background thread reading a single keystroke.
 
@@ -269,11 +269,14 @@ def start_key_listener(control_queue: queue.Queue, stop_event: threading.Event) 
                 if r:
                     ch = sys.stdin.read(1)
                     if ch.lower() == "s":
-                        control_queue.put("skip")
+                        for q in queues:
+                            q.put("skip")
                     elif ch.lower() == "p":
-                        control_queue.put("toggle_pause")
+                        for q in queues:
+                            q.put("toggle_pause")
                     elif ch.lower() == "i":
-                        control_queue.put("ignore")
+                        for q in queues:
+                            q.put("ignore")
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
 
@@ -284,11 +287,14 @@ def start_key_listener(control_queue: queue.Queue, stop_event: threading.Event) 
             if msvcrt.kbhit():
                 ch = msvcrt.getwch()
                 if ch.lower() == "s":
-                    control_queue.put("skip")
+                    for q in queues:
+                        q.put("skip")
                 elif ch.lower() == "p":
-                    control_queue.put("toggle_pause")
+                    for q in queues:
+                        q.put("toggle_pause")
                 elif ch.lower() == "i":
-                    control_queue.put("ignore")
+                    for q in queues:
+                        q.put("ignore")
             time.sleep(0.1)
 
     worker = _stdin_worker_windows if os.name == "nt" else _stdin_worker_posix
@@ -303,17 +309,54 @@ def beep() -> None:
     print("\a", end="", flush=True)
 
 
-def run_phase(label: str, seconds: int) -> None:
+def run_phase(label: str, seconds: int, timer_queue: queue.Queue) -> None:
     """Render a progress bar for *seconds*."""
     with Progress(
         TextColumn(f"[bold]{label}"),
         BarColumn(),
-        TimeRemainingColumn(),
+        TextColumn("[cyan]{task.description}"),
     ) as prog:
-        task = prog.add_task("", total=seconds)
+        task = prog.add_task(f"0:{seconds // 60:02d}:{seconds % 60:02d}", total=seconds)
+        paused = False
+        pause_start: float | None = None
+        total_paused_time = 0.0
+        start_time = time.monotonic()
+
         while not prog.finished:
-            time.sleep(1)
-            prog.update(task, advance=1)
+            # Check for pause/unpause commands
+            try:
+                cmd = timer_queue.get_nowait()
+                if cmd == "toggle_pause":
+                    if not paused:
+                        # entering pause
+                        paused = True
+                        pause_start = time.monotonic()
+                    else:
+                        # leaving pause
+                        paused = False
+                        if pause_start is not None:
+                            total_paused_time += time.monotonic() - pause_start
+                            pause_start = None
+            except queue.Empty:
+                pass
+
+            if not paused:
+                # Calculate actual elapsed time excluding paused periods
+                actual_elapsed = time.monotonic() - start_time - total_paused_time
+                if actual_elapsed >= 1.0:
+                    time.sleep(1)
+                    prog.update(task, advance=1)
+                    # Update the remaining time display
+                    remaining = seconds - int(actual_elapsed)
+                    if remaining >= 0:
+                        prog.tasks[
+                            task
+                        ].description = f"0:{remaining // 60:02d}:{remaining % 60:02d}"
+                else:
+                    time.sleep(0.1)
+            else:
+                # When paused, sleep briefly to lower CPU usage
+                time.sleep(0.1)
 
 
 def run_cycle(
@@ -322,6 +365,7 @@ def run_cycle(
     playlist: list[str],
     break_sound: str | None,
     control_queue: queue.Queue,
+    timer_queue: queue.Queue,
     remaining_work_sec: int | None = None,
 ) -> None:
     """Single work → break cycle."""
@@ -335,7 +379,7 @@ def run_cycle(
 
     # Use remaining time if provided, otherwise use full work time
     total_work = remaining_work_sec if remaining_work_sec is not None else work_sec
-    run_phase("Work", total_work)
+    run_phase("Work", total_work, timer_queue)
 
     pygame.mixer.music.stop()
     beep()
@@ -349,7 +393,7 @@ def run_cycle(
         except Exception as exc:  # noqa: BLE001
             print(f"[!] Couldn't play break sound: {exc}")
 
-    run_phase("Break", break_sec)
+    run_phase("Break", break_sec, timer_queue)
 
     pygame.mixer.music.stop()
     beep()
@@ -429,9 +473,12 @@ def main() -> None:
 
     # ---------- Key listener ----------
     control_queue: queue.Queue = queue.Queue()
+    timer_queue: queue.Queue = queue.Queue()
     stop_event = threading.Event()
-    start_key_listener(control_queue, stop_event)
-    print("🎹  Press 's' to skip, 'p' to pause/unpause, 'i' to ignore song\n")
+    start_key_listener([control_queue, timer_queue], stop_event)
+    print(
+        "🎹  Press 's' to skip, 'p' to pause/unpause timer & music, 'i' to ignore song\n"
+    )
 
     # ---------- Cycles ----------
     for cycle in range(1, args.cycles + 1):
@@ -444,12 +491,13 @@ def main() -> None:
             playlist,
             break_sound,
             control_queue,
+            timer_queue,
             remaining,
         )
 
     # ---------- Long break ----------
     print(f"\n🎉  {args.cycles} cycles done — enjoy a longer break!")
-    run_phase("Long Break", args.long * 60)
+    run_phase("Long Break", args.long * 60, timer_queue)
     beep()
     print("\n🏁  All done! Great job.")
 
