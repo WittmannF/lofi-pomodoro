@@ -102,12 +102,13 @@ def get_default_playlist() -> list[str]:
 # --------------------------------------------------------------------------- #
 def music_player_loop(
     playlist: list[str],
-    skip_queue: queue.Queue,
+    control_queue: queue.Queue,
     loop_forever: bool = False,
 ):
     """
-    Continuously play random tracks.  When *skip_queue* gets a signal,
-    stops the current track and moves to the next.
+    Continuously play random tracks.  Reacts to commands from *control_queue*:
+        - "skip" → stop current track and play the next
+        - "toggle_pause" → pause/unpause playback
     """
     if not playlist:
         return
@@ -138,11 +139,23 @@ def music_player_loop(
             time.sleep(1)
             continue
 
-        # Wait until song ends or skip key pressed
-        while pygame.mixer.music.get_busy():
+        # Wait until song ends, is skipped, or is paused/unpaused
+        paused = False
+        while pygame.mixer.music.get_busy() or paused:
             try:
-                skip_queue.get_nowait()
-                pygame.mixer.music.stop()
+                cmd = control_queue.get_nowait()
+                # Backwards-compatibility: old code enqueued True for skips
+                if cmd is True or cmd == "skip":
+                    pygame.mixer.music.stop()
+                    paused = False  # ensure not stuck in paused loop
+                    break  # move to next track
+                elif cmd == "toggle_pause":
+                    if paused:
+                        pygame.mixer.music.unpause()
+                        paused = False
+                    else:
+                        pygame.mixer.music.pause()
+                        paused = True
             except queue.Empty:
                 pass
             time.sleep(0.2)
@@ -151,11 +164,11 @@ def music_player_loop(
 # --------------------------------------------------------------------------- #
 #                           CROSS-PLATFORM KEY LISTENER                       #
 # --------------------------------------------------------------------------- #
-def start_skip_listener(skip_queue: queue.Queue, stop_event: threading.Event) -> None:
+def start_key_listener(control_queue: queue.Queue, stop_event: threading.Event) -> None:
     """
     Background thread reading a single keystroke.
 
-    Press lowercase or uppercase **S** in the *same* terminal to enqueue a skip.
+    Press **S** to skip or **P** to pause/unpause in the same terminal.
     Uses only std-lib (termios/tty on POSIX or msvcrt on Windows).
     """
 
@@ -173,7 +186,9 @@ def start_skip_listener(skip_queue: queue.Queue, stop_event: threading.Event) ->
                 if r:
                     ch = sys.stdin.read(1)
                     if ch.lower() == "s":
-                        skip_queue.put(True)
+                        control_queue.put("skip")
+                    elif ch.lower() == "p":
+                        control_queue.put("toggle_pause")
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
 
@@ -184,7 +199,9 @@ def start_skip_listener(skip_queue: queue.Queue, stop_event: threading.Event) ->
             if msvcrt.kbhit():
                 ch = msvcrt.getwch()
                 if ch.lower() == "s":
-                    skip_queue.put(True)
+                    control_queue.put("skip")
+                elif ch.lower() == "p":
+                    control_queue.put("toggle_pause")
             time.sleep(0.1)
 
     worker = _stdin_worker_windows if os.name == "nt" else _stdin_worker_posix
@@ -217,14 +234,14 @@ def run_cycle(
     break_sec: int,
     playlist: list[str],
     break_sound: str | None,
-    skip_queue: queue.Queue,
+    control_queue: queue.Queue,
     remaining_work_sec: int | None = None,
 ) -> None:
     """Single work → break cycle."""
     # ---- Work Phase ----
     music_thread = threading.Thread(
         target=music_player_loop,
-        args=(playlist, skip_queue, True),
+        args=(playlist, control_queue, True),
         daemon=True,
     )
     music_thread.start()
@@ -314,10 +331,10 @@ def main() -> None:
     pygame.mixer.music.set_volume(args.volume)
 
     # ---------- Key listener ----------
-    skip_queue: queue.Queue = queue.Queue()
+    control_queue: queue.Queue = queue.Queue()
     stop_event = threading.Event()
-    start_skip_listener(skip_queue, stop_event)
-    print("🎹  Press 's' to skip to the next track\n")
+    start_key_listener(control_queue, stop_event)
+    print("🎹  Press 's' to skip, 'p' to pause/unpause\n")
 
     # ---------- Cycles ----------
     for cycle in range(1, args.cycles + 1):
@@ -329,7 +346,7 @@ def main() -> None:
             args.short * 60,
             playlist,
             break_sound,
-            skip_queue,
+            control_queue,
             remaining,
         )
 
