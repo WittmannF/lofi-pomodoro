@@ -32,6 +32,9 @@ BREAK_SOUND_OPTIONS = {
     # "random": None,  # Placeholder for random sound
 }
 
+# Ignored songs file
+IGNORED_SONGS_FILE = ".ignored_songs"
+
 
 # --------------------------------------------------------------------------- #
 #                               FILE HELPERS                                  #
@@ -75,7 +78,7 @@ def get_break_sound(break_sound_option: str | None = None) -> str | None:
 
 
 def load_music_files(folder: str) -> list[str]:
-    """Return a list of audio files in *folder* (mp3/wav/ogg)."""
+    """Return a list of audio files in *folder* (mp3/wav/ogg), excluding ignored songs."""
     if not os.path.isdir(folder):
         print(f"[!] Music folder not found: {folder}")
         return []
@@ -87,14 +90,74 @@ def load_music_files(folder: str) -> list[str]:
         print(f"[!] No audio files in: {folder}")
         return []
 
-    print(f"[+] Found {len(files)} tracks in: {folder}")
-    return [os.path.join(folder, f) for f in files]
+    # Filter out ignored songs
+    ignored_songs = load_ignored_songs()
+    all_tracks = [os.path.join(folder, f) for f in files]
+    filtered_tracks = [track for track in all_tracks if track not in ignored_songs]
+
+    ignored_count = len(all_tracks) - len(filtered_tracks)
+    if ignored_count > 0:
+        print(f"[+] Found {len(files)} tracks in: {folder} ({ignored_count} ignored)")
+    else:
+        print(f"[+] Found {len(files)} tracks in: {folder}")
+
+    return filtered_tracks
 
 
 def get_default_playlist() -> list[str]:
     """Tracks shipped in ./default-playlist/ (optional)."""
     project_root = os.path.dirname(os.path.abspath(__file__))
     return load_music_files(os.path.join(project_root, "default-playlist"))
+
+
+def get_ignored_songs_file_path() -> str:
+    """Get the path to the ignored songs file in project root."""
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(project_root, IGNORED_SONGS_FILE)
+
+
+def load_ignored_songs() -> set[str]:
+    """Load the set of ignored song paths from the hidden file."""
+    ignored_file = get_ignored_songs_file_path()
+    ignored_songs = set()
+
+    if os.path.exists(ignored_file):
+        try:
+            with open(ignored_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    song_path = line.strip()
+                    if song_path:  # Skip empty lines
+                        ignored_songs.add(song_path)
+        except Exception as e:
+            print(f"[!] Couldn't read ignored songs file: {e}")
+
+    return ignored_songs
+
+
+def add_to_ignored_songs(song_path: str) -> None:
+    """Add a song path to the ignored songs file."""
+    ignored_file = get_ignored_songs_file_path()
+
+    try:
+        with open(ignored_file, "a", encoding="utf-8") as f:
+            f.write(f"{song_path}\n")
+        print(f"🎵 Song ignored: {os.path.basename(song_path)}")
+    except Exception as e:
+        print(f"[!] Couldn't write to ignored songs file: {e}")
+
+
+def reset_ignored_songs() -> None:
+    """Delete the ignored songs file."""
+    ignored_file = get_ignored_songs_file_path()
+
+    if os.path.exists(ignored_file):
+        try:
+            os.remove(ignored_file)
+            print("✅ Ignored songs list reset")
+        except Exception as e:
+            print(f"[!] Couldn't delete ignored songs file: {e}")
+    else:
+        print("ℹ️  No ignored songs file found")
 
 
 # --------------------------------------------------------------------------- #
@@ -109,6 +172,7 @@ def music_player_loop(
     Continuously play random tracks.  Reacts to commands from *control_queue*:
         - "skip" → stop current track and play the next
         - "toggle_pause" → pause/unpause playback
+        - "ignore" → add current track to ignored songs list
     """
     if not playlist:
         return
@@ -139,7 +203,7 @@ def music_player_loop(
             time.sleep(1)
             continue
 
-        # Wait until song ends, is skipped, or is paused/unpaused
+        # Wait until song ends, is skipped, is paused/unpaused, or is ignored
         paused = False
         while pygame.mixer.music.get_busy() or paused:
             try:
@@ -156,6 +220,11 @@ def music_player_loop(
                     else:
                         pygame.mixer.music.pause()
                         paused = True
+                elif cmd == "ignore":
+                    add_to_ignored_songs(track)
+                    pygame.mixer.music.stop()
+                    paused = False  # ensure not stuck in paused loop
+                    break  # move to next track
             except queue.Empty:
                 pass
             time.sleep(0.2)
@@ -168,7 +237,7 @@ def start_key_listener(control_queue: queue.Queue, stop_event: threading.Event) 
     """
     Background thread reading a single keystroke.
 
-    Press **S** to skip or **P** to pause/unpause in the same terminal.
+    Press **S** to skip, **P** to pause/unpause, or **I** to ignore song in the same terminal.
     Uses only std-lib (termios/tty on POSIX or msvcrt on Windows).
     """
 
@@ -189,6 +258,8 @@ def start_key_listener(control_queue: queue.Queue, stop_event: threading.Event) 
                         control_queue.put("skip")
                     elif ch.lower() == "p":
                         control_queue.put("toggle_pause")
+                    elif ch.lower() == "i":
+                        control_queue.put("ignore")
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
 
@@ -202,6 +273,8 @@ def start_key_listener(control_queue: queue.Queue, stop_event: threading.Event) 
                     control_queue.put("skip")
                 elif ch.lower() == "p":
                     control_queue.put("toggle_pause")
+                elif ch.lower() == "i":
+                    control_queue.put("ignore")
             time.sleep(0.1)
 
     worker = _stdin_worker_windows if os.name == "nt" else _stdin_worker_posix
@@ -302,10 +375,20 @@ def main() -> None:
         type=int,
         help="resume with X minutes remaining in the first work cycle",
     )
+    parser.add_argument(
+        "--reset-ignored",
+        action="store_true",
+        help="reset the list of ignored songs",
+    )
     args = parser.parse_args()
 
     if not 0.0 <= args.volume <= 1.0:
         parser.error("Volume must be between 0.0 and 1.0")
+
+    # Handle reset ignored songs
+    if args.reset_ignored:
+        reset_ignored_songs()
+        return
 
     # Convert resume time to seconds if provided
     remaining_work_sec = args.resume * 60 if args.resume is not None else None
@@ -334,7 +417,7 @@ def main() -> None:
     control_queue: queue.Queue = queue.Queue()
     stop_event = threading.Event()
     start_key_listener(control_queue, stop_event)
-    print("🎹  Press 's' to skip, 'p' to pause/unpause\n")
+    print("🎹  Press 's' to skip, 'p' to pause/unpause, 'i' to ignore song\n")
 
     # ---------- Cycles ----------
     for cycle in range(1, args.cycles + 1):
