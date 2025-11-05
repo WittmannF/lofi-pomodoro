@@ -506,7 +506,7 @@ def main() -> None:
     stop_event = threading.Event()
     start_key_listener([control_queue, timer_queue], stop_event)
     print(
-        "🎹  Press 's' to skip, 'p' to pause/unpause timer & music, 'i' to ignore song\n"
+        "🎹  Press 's' to skip, 'p' to pause/unpause timer & music, 'i' to add song to ignored list\n"
     )
 
     # ---------- Cycles ----------
