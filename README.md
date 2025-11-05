@@ -15,6 +15,55 @@ A simple, relaxing CLI Pomodoro timer that plays lo-fi beats during work session
 * **Audio Control**: Adjust volume and toggle work music/break sounds independently.
 * **Music Controls**: Press 's' to skip, 'p' to pause/unpause, or 'i' to ignore a song during work sessions.
 
+## Example of CLI
+```bash
+source .venv/bin/activate && pomodoro
+pygame 2.6.1 (SDL 2.28.4, Python 3.12.2)
+Hello from the pygame community. https://www.pygame.org/contribute.html
+[+] Found 254 tracks in: /Users/wittmann/repos/pomodoro/pomodoro/default-playlist (12 ignored)
+🎹  Press 's' to skip, 'p' to pause/unpause timer & music, 'i' to ignore song
+
+
+🔄  Cycle 1 of 4
+
+🎵  Now playing: Ghostrifter-Official-Back-Home(chosic.com).mp3
+
+🎵  Now playing: Balloon(chosic.com).mp3
+
+🎵  Now playing: roa-music-walk-around-lofi-version(chosic.com).mp3
+
+🎵  Now playing: journey-end(chosic.com).mp3
+
+🎵  Now playing: Daydreams-chosic.com_.mp3
+
+🎵  Now playing: And-So-It-Begins-Inspired-By-Crush-Sometimes(chosic.com).mp3
+
+🎵  Now playing: breathe-chill-lofi-beats-362644.mp3
+
+🎵  Now playing: Wondering(chosic.com).mp3
+
+🎵  Now playing: Ghostrifter-Official-Simplicit-Nights(chosic.com).mp3
+
+🎵  Now playing: Little-Wishes-chosic.com_.mp3
+
+🛀  Time for a break!
+
+Break ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 0:00:01
+
+✅  Break over — back to work!
+
+
+🔄  Cycle 2 of 4
+
+🎵  Now playing: Wonderment(chosic.com).mp3
+
+🎵  Now playing: ambient-lofi-lofi-music-344112.mp3
+
+🎵  Now playing: purrple-cat-dreams-come-true(chosic.com).mp3
+
+Work ━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━ 0:17:22
+```
+
 ## Installation
 
 Clone the repository and install locally:
