@@ -16,6 +16,7 @@ import random
 import sys
 import threading
 import time
+import math
 
 from rich.progress import Progress, TextColumn, BarColumn, TimeRemainingColumn
 import pygame
@@ -305,8 +306,36 @@ def start_key_listener(queues: list[queue.Queue], stop_event: threading.Event) -
 #                            TIMER / STATE MACHINE                            #
 # --------------------------------------------------------------------------- #
 def beep() -> None:
-    """Terminal bell – simple and portable."""
-    print("\a", end="", flush=True)
+    """Generate a beep sound using pygame - more reliable than terminal bell."""
+    try:
+        # Initialize pygame mixer if not already done
+        if not pygame.mixer.get_init():
+            pygame.mixer.init()
+
+        # Generate a simple sine wave beep
+        sample_rate = 44100
+        duration = 0.3  # seconds
+        frequency = 800  # Hz
+
+        # Generate sine wave
+        samples = int(sample_rate * duration)
+        wave = []
+        for i in range(samples):
+            wave.append(
+                int(16383 * math.sin(2 * math.pi * frequency * i / sample_rate))
+            )
+
+        # Convert to pygame sound
+        sound_array = pygame.sndarray.array(wave)
+        sound = pygame.sndarray.make_sound(sound_array)
+        sound.play()
+
+        # Small delay to ensure sound plays
+        time.sleep(0.1)
+
+    except Exception:
+        # Fallback to terminal bell if pygame fails
+        print("\a", end="", flush=True)
 
 
 def run_phase(label: str, seconds: int, timer_queue: queue.Queue) -> None:
