@@ -13,17 +13,11 @@ A simple, relaxing CLI Pomodoro timer that plays lo-fi beats during work session
 * **Break Sounds**: Different ambient sounds during work and break periods.
 * **Session Resume**: Resume a session from where you left off using the `--resume` option.
 * **Audio Control**: Adjust volume and toggle work music/break sounds independently.
-* **Music Controls**: Press 's' to skip to the next track during work sessions.
+* **Music Controls**: Press 's' to skip, 'p' to pause/unpause, or 'i' to ignore a song during work sessions.
 
 ## Installation
 
-Install from PyPI:
-
-```bash
-pip install lofi-pomodoro
-```
-
-Or clone the repository and install locally:
+Clone the repository and install locally:
 
 ```bash
 git clone https://github.com/WittmannF/lofi-pomodoro.git
@@ -31,7 +25,36 @@ cd lofi-pomodoro
 pip install -e .
 ```
 
+## Getting Started
+
+### Downloading Free Music
+
+The project includes a script to download free lo-fi music from [Chosic](https://www.chosic.com). You can use it to build your own playlist.
+
+**Note:** The scrape script requires additional dependencies. Install them with:
+
+```bash
+pip install requests beautifulsoup4
+```
+
+Then you can use the script:
+
+```bash
+# Download lo-fi tracks (default style)
+python scripts/scrape_songs.py
+```
+
+The script will:
+- Download MP3 files from Chosic's free music library
+- Save them to `chosic/{style}/` by default (e.g., `chosic/lofi/`)
+- Remember what it has already downloaded (so you can re-run it safely)
+- Use respectful crawling with delays between requests
+
+**Note:** You can also use any folder containing `.mp3`, `.wav`, or `.ogg` files as your music source. Simply point the timer to your folder using the `--music-folder` option.
+
 ## Usage
+
+### Basic Usage
 
 Run the timer with your music folder:
 
@@ -39,7 +62,7 @@ Run the timer with your music folder:
 lofi-pomodoro --music-folder /path/to/your/music
 ```
 
-Or use the default playlist:
+Or use the default playlist (if available in `pomodoro/default-playlist/`):
 
 ```bash
 lofi-pomodoro
@@ -73,6 +96,8 @@ lofi-pomodoro --no-work-music --no-break-sound  # Run silently
 
 During work sessions, you can control the music playback:
 - Press `s` to skip to the next track
+- Press `p` to pause/unpause the timer and music
+- Press `i` to ignore the current song (adds it to `.ignored_songs` file)
 - The current track name is displayed when it starts playing
 - Tracks won't repeat until all tracks have been played
 
@@ -80,7 +105,7 @@ During work sessions, you can control the music playback:
 
 | Argument           | Description                                                                                                     | Default    |
 | ------------------ | --------------------------------------------------------------------------------------------------------------- | ---------- |
-| `--music-folder`   | Path to folder containing `.mp3`, `.wav`, or `.ogg` files. If omitted, a default open-license playlist is used. | (optional) |
+| `--music-folder`   | Path to folder containing `.mp3`, `.wav`, or `.ogg` files. If omitted, a default playlist is used (if available). | (optional) |
 | `--work`           | Work duration in minutes                                                                                        | `25`       |
 | `--short`          | Short break duration in minutes                                                                                 | `5`        |
 | `--long`           | Long break duration in minutes                                                                                  | `15`       |
@@ -88,7 +113,9 @@ During work sessions, you can control the music playback:
 | `--resume`         | Resume with X minutes remaining in the first work cycle                                                         | (optional) |
 | `--no-work-music`  | Disable the work music                                                                                          | `false`    |
 | `--no-break-sound` | Disable the break sound effect                                                                                  | `false`    |
+| `--break-sound`    | Break sound to use: `rain`, `fireplace`, `wind`, `soft-wind`, `random`, or path to custom sound file          | `random`   |
 | `--volume`         | Set the volume (0.0 to 1.0)                                                                                     | `1.0`      |
+| `--reset-ignored`  | Reset the list of ignored songs                                                                                 | (optional) |
 
 ## Development
 
@@ -98,15 +125,27 @@ During work sessions, you can control the music playback:
    git clone https://github.com/WittmannF/lofi-pomodoro.git
    cd lofi-pomodoro
    ```
+
 2. Install dependencies:
 
    ```bash
    pip install -r requirements.txt
    ```
-3. Run tests (if available) or try it out:
+
+3. Install the package in editable mode:
 
    ```bash
-   python pomodoro.py --music-folder ./music
+   pip install -e .
+   ```
+
+4. Try it out:
+
+   ```bash
+   # Download some music first
+   python scripts/scrape_songs.py
+
+   # Run the timer
+   python -m pomodoro --music-folder chosic/lofi
    ```
 
 ## Contributing
