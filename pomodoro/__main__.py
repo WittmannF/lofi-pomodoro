@@ -98,23 +98,25 @@ def load_music_files(folder: str) -> list[str]:
         print(f"[!] Music folder not found: {folder}")
         return []
 
-    files = [
-        f for f in os.listdir(folder) if f.lower().endswith(SUPPORTED_AUDIO_EXTENSIONS)
+    all_tracks = [
+        os.path.join(root, f)
+        for root, _, files in os.walk(folder)
+        for f in files
+        if f.lower().endswith(SUPPORTED_AUDIO_EXTENSIONS)
     ]
-    if not files:
+    if not all_tracks:
         print(f"[!] No audio files in: {folder}")
         return []
 
     # Filter out ignored songs
     ignored_songs = load_ignored_songs()
-    all_tracks = [os.path.join(folder, f) for f in files]
     filtered_tracks = [track for track in all_tracks if track not in ignored_songs]
 
     ignored_count = len(all_tracks) - len(filtered_tracks)
     if ignored_count > 0:
-        print(f"[+] Found {len(files)} tracks in: {folder} ({ignored_count} ignored)")
+        print(f"[+] Found {len(all_tracks)} tracks in: {folder} ({ignored_count} ignored)")
     else:
-        print(f"[+] Found {len(files)} tracks in: {folder}")
+        print(f"[+] Found {len(all_tracks)} tracks in: {folder}")
 
     return filtered_tracks
 
