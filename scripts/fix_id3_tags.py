@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Strip empty/problematic ID3 tags from MP3 files to silence the pygame/libmpg123
+Strip empty COMM/USLT ID3 frames from MP3 files to silence the pygame/libmpg123
 warning: "No comment text / valid description?"
 
-This removes all comments, lyrics, images, objects, and unknown frames — the
-fields most likely to be empty in AI-generated or auto-tagged music.
+Only frames with empty text and empty description are removed; frames with real
+content (e.g. actual lyrics or meaningful comments) are left intact.
 
 Usage
 -----
@@ -25,12 +25,21 @@ try:
     import logging
     eyed3_log.setLevel(logging.ERROR)  # suppress eyed3's own chatter
 except ImportError:
-    print("eyed3 not installed. Run: uv pip install eyed3", file=sys.stderr)
+    print(
+        "eyed3 not installed. Run `pip install eyed3` (or `uv pip install eyed3`).",
+        file=sys.stderr,
+    )
     sys.exit(1)
 
 
+def _is_empty_frame(frame) -> bool:
+    text = getattr(frame, "text", None) or ""
+    desc = getattr(frame, "description", None) or ""
+    return not text.strip() and not desc.strip()
+
+
 def fix_file(path: str, dry_run: bool) -> bool:
-    """Return True if the file had tags that were cleaned."""
+    """Return True if the file had empty frames that were (or would be) removed."""
     af = eyed3.load(path)
     if af is None or af.tag is None:
         return False
@@ -38,30 +47,19 @@ def fix_file(path: str, dry_run: bool) -> bool:
     tag = af.tag
     changed = False
 
-    if list(tag.comments):
+    empty_comments = [f for f in tag.comments if _is_empty_frame(f)]
+    if empty_comments:
         changed = True
         if not dry_run:
-            tag.comments.remove(b"")  # remove all
-            for frame in list(tag.comments):
-                tag.comments.remove(frame.description.encode())
+            for frame in empty_comments:
+                tag.comments.remove(frame.description.encode(), frame.lang)
 
-    if list(tag.lyrics):
+    empty_lyrics = [f for f in tag.lyrics if _is_empty_frame(f)]
+    if empty_lyrics:
         changed = True
         if not dry_run:
-            for frame in list(tag.lyrics):
-                tag.lyrics.remove(frame.description.encode())
-
-    if list(tag.images):
-        changed = True
-        if not dry_run:
-            for frame in list(tag.images):
-                tag.images.remove(frame.description.encode())
-
-    if list(tag.objects):
-        changed = True
-        if not dry_run:
-            for frame in list(tag.objects):
-                tag.objects.remove(frame.description.encode())
+            for frame in empty_lyrics:
+                tag.lyrics.remove(frame.description.encode(), frame.lang)
 
     if changed and not dry_run:
         try:
@@ -79,7 +77,7 @@ def main() -> None:
         "pomodoro", "default-playlist",
     )
     parser = argparse.ArgumentParser(
-        description="Strip empty ID3 comment/lyric/image tags from MP3s"
+        description="Remove empty COMM/USLT ID3 frames from MP3s to silence libmpg123 warnings"
     )
     parser.add_argument("-d", "--dir", default=default_dir,
                         help=f"Directory to scan (default: {default_dir})")

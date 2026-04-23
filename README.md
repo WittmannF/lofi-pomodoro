@@ -103,13 +103,13 @@ The script will:
 
 ### Fixing ID3 Tag Warnings
 
-Some MP3 files (especially AI-generated or auto-tagged tracks) contain empty ID3 tag fields that cause pygame to print a harmless but noisy warning:
+Some MP3 files (especially AI-generated or auto-tagged tracks) contain empty ID3 comment/lyric frames that cause pygame to print a harmless but noisy warning:
 
 ```
 [src/libmpg123/id3.c:process_comment():584] error: No comment text / valid description?
 ```
 
-To silence this, strip the empty tags with the included script:
+To silence this, remove the empty frames with the included script (non-empty comments and lyrics are preserved):
 
 ```bash
 # Install eyeD3 (one-time)
