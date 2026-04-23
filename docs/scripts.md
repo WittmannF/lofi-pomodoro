@@ -90,12 +90,16 @@ Supports individual videos, playlists, and channels.
 
 ```
 usage: download_youtube.py [-h] [-f FILE] [-o OUT] [--dry-run]
+                           [--max-size MB] [--timeout SECONDS]
 
 options:
-  -f, --file FILE   Text file with YouTube URLs, one per line
-                    (default: youtube_links.txt)
-  -o, --out OUT     Output directory (default: pomodoro/default-playlist)
-  --dry-run         Resolve and list tracks without downloading
+  -f, --file FILE       Text file with YouTube URLs, one per line
+                        (default: youtube_links.txt)
+  -o, --out OUT         Output directory (default: pomodoro/default-playlist)
+  --dry-run             Resolve and list tracks without downloading
+  --max-size MB         Skip videos whose estimated size exceeds this value
+                        in MB (default: 100). Useful to avoid live streams.
+  --timeout SECONDS     Per-download socket timeout in seconds (default: 120)
 ```
 
 **Link file format (`youtube_links.txt`):**
@@ -127,6 +131,8 @@ python scripts/download_youtube.py -o /path/to/music
 **Notes:**
 - State file: `.yt_downloaded_ids.txt` inside the output folder
 - Filenames follow the pattern `Artist - Title [videoID].mp3`
+- Live streams are detected and skipped automatically
+- Use `--max-size` to guard against unexpectedly large files (live radio, mixes)
 
 ---
 

@@ -5,6 +5,7 @@ Download audio from YouTube links as MP3s using yt-dlp.
 Reads a plain-text file with one YouTube URL per line (videos, playlists,
 or channels). Lines starting with '#' and blank lines are ignored.
 Already-downloaded IDs are tracked in a state file so re-runs are safe.
+Live streams and videos exceeding the size limit are skipped automatically.
 
 Usage
 -----
@@ -12,6 +13,8 @@ $ python scripts/download_youtube.py                        # uses youtube_links
 $ python scripts/download_youtube.py -f my_links.txt        # custom links file
 $ python scripts/download_youtube.py -o /path/to/music      # custom output folder
 $ python scripts/download_youtube.py --dry-run              # list without downloading
+$ python scripts/download_youtube.py --max-size 50          # skip files over 50 MB
+$ python scripts/download_youtube.py --timeout 300          # per-download timeout (s)
 """
 
 from __future__ import annotations
@@ -32,6 +35,8 @@ except ImportError:
 
 STATE_FILE = ".yt_downloaded_ids.txt"
 DEFAULT_LINKS_FILE = "youtube_links.txt"
+DEFAULT_MAX_SIZE_MB = 100   # skip anything larger (live streams are typically huge)
+DEFAULT_TIMEOUT_S = 120     # per-download socket timeout in seconds
 
 
 def load_links(path: str) -> List[str]:
@@ -60,27 +65,34 @@ def mark_done(state_path: str, video_id: str) -> None:
 
 
 def resolve_ids(url: str) -> List[dict]:
-    """Return list of {id, title, url} for all videos reachable from url."""
+    """Return list of {id, title, url, is_live, filesize_mb} for all videos reachable from url."""
     opts = {
         "quiet": True,
         "no_warnings": True,
-        "extract_flat": True,  # don't download, just enumerate
+        "extract_flat": False,  # full info needed to detect live streams and size
         "skip_download": True,
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=False)
     if info is None:
         return []
+
+    def _entry(e: dict) -> dict:
+        filesize = e.get("filesize") or e.get("filesize_approx") or 0
+        return {
+            "id": e["id"],
+            "title": e.get("title", e["id"]),
+            "url": e.get("webpage_url") or e.get("url") or url,
+            "is_live": bool(e.get("is_live") or e.get("was_live")),
+            "filesize_mb": filesize / (1024 * 1024),
+        }
+
     if info.get("_type") == "playlist":
-        return [
-            {"id": e["id"], "title": e.get("title", e["id"]), "url": e["url"]}
-            for e in (info.get("entries") or [])
-            if e and e.get("id")
-        ]
-    return [{"id": info["id"], "title": info.get("title", info["id"]), "url": url}]
+        return [_entry(e) for e in (info.get("entries") or []) if e and e.get("id")]
+    return [_entry(info)]
 
 
-def download_audio(url: str, out_dir: str) -> None:
+def download_audio(url: str, out_dir: str, timeout_s: int) -> None:
     opts = {
         "format": "bestaudio/best",
         "outtmpl": os.path.join(out_dir, "%(uploader)s - %(title)s [%(id)s].%(ext)s"),
@@ -91,6 +103,7 @@ def download_audio(url: str, out_dir: str) -> None:
         }],
         "quiet": True,
         "no_warnings": True,
+        "socket_timeout": timeout_s,
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
         ydl.download([url])
@@ -118,6 +131,20 @@ def main() -> None:
         action="store_true",
         help="Resolve and list tracks without downloading",
     )
+    parser.add_argument(
+        "--max-size",
+        type=float,
+        default=DEFAULT_MAX_SIZE_MB,
+        metavar="MB",
+        help=f"Skip videos whose estimated size exceeds this value in MB (default: {DEFAULT_MAX_SIZE_MB})",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=DEFAULT_TIMEOUT_S,
+        metavar="SECONDS",
+        help=f"Per-download socket timeout in seconds (default: {DEFAULT_TIMEOUT_S})",
+    )
     args = parser.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
@@ -127,7 +154,7 @@ def main() -> None:
 
     print(f"[+] Loaded {len(links)} URL(s) from {args.file}")
 
-    total_queued = total_skipped = total_ok = total_fail = 0
+    total_queued = total_skipped = total_ok = total_fail = total_ignored = 0
 
     for url in links:
         print(f"\n[>] {url}", flush=True)
@@ -147,13 +174,25 @@ def main() -> None:
                 print(f"  ~ skip (already downloaded): {title}")
                 continue
 
-            print(f"  • {title}", flush=True)
+            if entry["is_live"]:
+                total_ignored += 1
+                print(f"  ~ skip (live stream): {title}")
+                continue
+
+            size_mb = entry["filesize_mb"]
+            if size_mb > args.max_size:
+                total_ignored += 1
+                print(f"  ~ skip (too large: {size_mb:.0f} MB > {args.max_size:.0f} MB): {title}")
+                continue
+
+            size_hint = f" (~{size_mb:.0f} MB)" if size_mb > 0 else ""
+            print(f"  • {title}{size_hint}", flush=True)
 
             if args.dry_run:
                 continue
 
             try:
-                download_audio(entry["url"], args.out)
+                download_audio(entry["url"], args.out, args.timeout)
                 mark_done(state_path, vid_id)
                 total_ok += 1
             except Exception as exc:
@@ -161,9 +200,9 @@ def main() -> None:
                 total_fail += 1
 
     if args.dry_run:
-        print(f"\n[+] {total_queued} track(s) found ({total_skipped} already downloaded)")
+        print(f"\n[+] {total_queued} track(s) found ({total_skipped} already downloaded, {total_ignored} would be skipped)")
     else:
-        print(f"\n[+] {total_ok} downloaded, {total_skipped} skipped, {total_fail} failed")
+        print(f"\n[+] {total_ok} downloaded, {total_skipped} skipped, {total_ignored} ignored, {total_fail} failed")
 
 
 if __name__ == "__main__":
