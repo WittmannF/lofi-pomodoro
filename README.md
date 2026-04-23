@@ -94,6 +94,8 @@ To install all optional dependencies at once:
 uv pip install -e ".[scripts]"
 ```
 
+See [docs/scripts.md](docs/scripts.md) for the full CLI reference for each script.
+
 ### Downloading Free Music
 
 The project includes scripts to build your playlist from free sources.
