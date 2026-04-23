@@ -101,6 +101,30 @@ The script will:
 
 **Note:** You can also use any folder containing `.mp3`, `.wav`, or `.ogg` files as your music source. Simply point the timer to your folder using the `--music-folder` option.
 
+### Fixing ID3 Tag Warnings
+
+Some MP3 files (especially AI-generated or auto-tagged tracks) contain empty ID3 comment/lyric frames that cause pygame to print a harmless but noisy warning:
+
+```
+[src/libmpg123/id3.c:process_comment():584] error: No comment text / valid description?
+```
+
+To silence this, remove the empty frames with the included script (non-empty comments and lyrics are preserved):
+
+```bash
+# Install eyeD3 (one-time)
+pip install eyed3
+
+# Fix all tracks in the default playlist
+python scripts/fix_id3_tags.py
+
+# Preview what would change without modifying files
+python scripts/fix_id3_tags.py --dry-run
+
+# Fix a custom folder
+python scripts/fix_id3_tags.py -d /path/to/music
+```
+
 ## Usage
 
 ### Basic Usage
@@ -108,19 +132,19 @@ The script will:
 Run the timer with your music folder:
 
 ```bash
-lofi-pomodoro --music-folder /path/to/your/music
+pomodoro --music-folder /path/to/your/music
 ```
 
 Or use the default playlist (if available in `pomodoro/default-playlist/`):
 
 ```bash
-lofi-pomodoro
+pomodoro
 ```
 
 Example with custom settings:
 
 ```bash
-lofi-pomodoro \
+pomodoro \
   --music-folder ./music \
   --work 50 \
   --short 10 \
@@ -132,13 +156,13 @@ lofi-pomodoro \
 Resume a session with remaining time:
 
 ```bash
-lofi-pomodoro --resume 15  # Resume with 15 minutes remaining in first work cycle
+pomodoro --resume 15  # Resume with 15 minutes remaining in first work cycle
 ```
 
 Run without music or break sounds:
 
 ```bash
-lofi-pomodoro --no-work-music --no-break-sound  # Run silently
+pomodoro --no-work-music --no-break-sound  # Run silently
 ```
 
 ### Music Controls
