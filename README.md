@@ -71,7 +71,8 @@ Clone the repository and install locally:
 ```bash
 git clone https://github.com/WittmannF/lofi-pomodoro.git
 cd lofi-pomodoro
-pip install -e .
+uv venv .venv && source .venv/bin/activate
+uv pip install -e .
 ```
 
 ## Getting Started
@@ -82,15 +83,15 @@ The helper scripts each have their own dependencies beyond the core timer. Insta
 
 | Script | Purpose | Install |
 |--------|---------|---------|
-| `scripts/scrape_songs.py` | Download lo-fi tracks from Chosic | `pip install -e ".[scrape]"` |
-| `scripts/scrape_fma.py` | Download tracks from Free Music Archive | `pip install -e ".[scrape]"` |
-| `scripts/download_youtube.py` | Download audio from YouTube | `pip install -e ".[youtube]"` + `brew install ffmpeg` |
-| `scripts/fix_id3_tags.py` | Strip empty ID3 frames to silence pygame warnings | `pip install -e ".[id3]"` |
+| `scripts/scrape_songs.py` | Download lo-fi tracks from Chosic | `uv pip install -e ".[scrape]"` |
+| `scripts/scrape_fma.py` | Download tracks from Free Music Archive | `uv pip install -e ".[scrape]"` |
+| `scripts/download_youtube.py` | Download audio from YouTube | `uv pip install -e ".[youtube]"` + `brew install ffmpeg` |
+| `scripts/fix_id3_tags.py` | Strip empty ID3 frames to silence pygame warnings | `uv pip install -e ".[id3]"` |
 
 To install all optional dependencies at once:
 
 ```bash
-pip install -e ".[scripts]"
+uv pip install -e ".[scripts]"
 ```
 
 ### Downloading Free Music
@@ -126,19 +127,19 @@ All scripts save tracks directly to `pomodoro/default-playlist/` and remember wh
 Run the timer with your music folder:
 
 ```bash
-lofi-pomodoro --music-folder /path/to/your/music
+pomodoro --music-folder /path/to/your/music
 ```
 
 Or use the default playlist (if available in `pomodoro/default-playlist/`):
 
 ```bash
-lofi-pomodoro
+pomodoro
 ```
 
 Example with custom settings:
 
 ```bash
-lofi-pomodoro \
+pomodoro \
   --music-folder ./music \
   --work 50 \
   --short 10 \
@@ -150,13 +151,13 @@ lofi-pomodoro \
 Resume a session with remaining time:
 
 ```bash
-lofi-pomodoro --resume 15  # Resume with 15 minutes remaining in first work cycle
+pomodoro --resume 15  # Resume with 15 minutes remaining in first work cycle
 ```
 
 Run without music or break sounds:
 
 ```bash
-lofi-pomodoro --no-work-music --no-break-sound  # Run silently
+pomodoro --no-work-music --no-break-sound  # Run silently
 ```
 
 ### Music Controls
@@ -193,26 +194,21 @@ During work sessions, you can control the music playback:
    cd lofi-pomodoro
    ```
 
-2. Install dependencies:
+2. Create a virtual environment and install:
 
    ```bash
-   pip install -r requirements.txt
+   uv venv .venv && source .venv/bin/activate
+   uv pip install -e .
    ```
 
-3. Install the package in editable mode:
-
-   ```bash
-   pip install -e .
-   ```
-
-4. Try it out:
+3. Try it out:
 
    ```bash
    # Download some music first
    python scripts/scrape_songs.py
 
    # Run the timer
-   python -m pomodoro --music-folder chosic/lofi
+   pomodoro
    ```
 
 ## Contributing
