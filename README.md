@@ -122,6 +122,30 @@ All scripts save tracks directly to `pomodoro/default-playlist/` and remember wh
 
 **Note:** You can also use any folder containing `.mp3`, `.wav`, or `.ogg` files as your music source. Simply point the timer to your folder using the `--music-folder` option.
 
+### Fixing ID3 Tag Warnings
+
+Some MP3 files (especially AI-generated or auto-tagged tracks) contain empty ID3 comment/lyric frames that cause pygame to print a harmless but noisy warning:
+
+```
+[src/libmpg123/id3.c:process_comment():584] error: No comment text / valid description?
+```
+
+To silence this, remove the empty frames with the included script (non-empty comments and lyrics are preserved):
+
+```bash
+# Install eyeD3 (one-time)
+pip install eyed3
+
+# Fix all tracks in the default playlist
+python scripts/fix_id3_tags.py
+
+# Preview what would change without modifying files
+python scripts/fix_id3_tags.py --dry-run
+
+# Fix a custom folder
+python scripts/fix_id3_tags.py -d /path/to/music
+```
+
 ## Usage
 
 ### Basic Usage
