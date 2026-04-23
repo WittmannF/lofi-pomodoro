@@ -33,6 +33,16 @@ dependencies = [
     "psutil>=5.9.0",
 ]
 
+[project.optional-dependencies]
+# scripts/scrape_songs.py and scripts/scrape_fma.py
+scrape = ["requests", "beautifulsoup4"]
+# scripts/download_youtube.py (also requires ffmpeg system binary)
+youtube = ["yt-dlp"]
+# scripts/fix_id3_tags.py
+id3 = ["eyed3"]
+# all optional script deps at once
+scripts = ["requests", "beautifulsoup4", "yt-dlp", "eyed3"]
+
 [project.urls]
 Homepage = "https://github.com/WittmannF/lofi-pomodoro"
 Repository = "https://github.com/WittmannF/lofi-pomodoro.git"
