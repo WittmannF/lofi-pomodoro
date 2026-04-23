@@ -1,0 +1,7 @@
+# Add YouTube URLs here — one per line.
+# Supports individual videos, playlists (?list=...), and channels.
+# Lines starting with '#' are ignored.
+
+# Example:
+# https://www.youtube.com/watch?v=5qap5aO4i9A
+# https://www.youtube.com/playlist?list=PLofht4PTcKYnaH8w5olJCI-wUTuSO3ZAL

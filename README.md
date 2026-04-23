@@ -71,33 +71,54 @@ Clone the repository and install locally:
 ```bash
 git clone https://github.com/WittmannF/lofi-pomodoro.git
 cd lofi-pomodoro
-pip install -e .
+uv venv .venv && source .venv/bin/activate
+uv pip install -e .
 ```
 
 ## Getting Started
 
-### Downloading Free Music
+### Optional script dependencies
 
-The project includes a script to download free lo-fi music from [Chosic](https://www.chosic.com). You can use it to build your own playlist.
+The helper scripts each have their own dependencies beyond the core timer. Install only what you need:
 
-**Note:** The scrape script requires additional dependencies. Install them with:
+| Script | Purpose | Install |
+|--------|---------|---------|
+| `scripts/scrape_songs.py` | Download lo-fi tracks from Chosic | `uv pip install -e ".[scrape]"` |
+| `scripts/scrape_fma.py` | Download tracks from Free Music Archive | `uv pip install -e ".[scrape]"` |
+| `scripts/download_youtube.py` | Download audio from YouTube | `uv pip install -e ".[youtube]"` + `brew install ffmpeg` |
+| `scripts/fix_id3_tags.py` | Strip empty ID3 frames to silence pygame warnings | `uv pip install -e ".[id3]"` |
+
+To install all optional dependencies at once:
 
 ```bash
-pip install requests beautifulsoup4
+uv pip install -e ".[scripts]"
 ```
 
-Then you can use the script:
+See [docs/scripts.md](docs/scripts.md) for the full CLI reference for each script.
+
+### Downloading Free Music
+
+The project includes scripts to build your playlist from free sources.
+
+**From Chosic** (lo-fi, no login required):
 
 ```bash
-# Download lo-fi tracks (default style)
 python scripts/scrape_songs.py
 ```
 
-The script will:
-- Download MP3 files from Chosic's free music library
-- Save them to `chosic/{style}/` by default (e.g., `chosic/lofi/`)
-- Remember what it has already downloaded (so you can re-run it safely)
-- Use respectful crawling with delays between requests
+**From Free Music Archive** (35 000+ lo-fi tracks, no login required):
+
+```bash
+python scripts/scrape_fma.py
+```
+
+**From YouTube** (add URLs to `youtube_links.txt` first):
+
+```bash
+python scripts/download_youtube.py
+```
+
+All scripts save tracks directly to `pomodoro/default-playlist/` and remember what was already downloaded so re-runs are safe.
 
 **Note:** You can also use any folder containing `.mp3`, `.wav`, or `.ogg` files as your music source. Simply point the timer to your folder using the `--music-folder` option.
 
@@ -199,26 +220,21 @@ During work sessions, you can control the music playback:
    cd lofi-pomodoro
    ```
 
-2. Install dependencies:
+2. Create a virtual environment and install:
 
    ```bash
-   pip install -r requirements.txt
+   uv venv .venv && source .venv/bin/activate
+   uv pip install -e .
    ```
 
-3. Install the package in editable mode:
-
-   ```bash
-   pip install -e .
-   ```
-
-4. Try it out:
+3. Try it out:
 
    ```bash
    # Download some music first
    python scripts/scrape_songs.py
 
    # Run the timer
-   python -m pomodoro --music-folder chosic/lofi
+   pomodoro
    ```
 
 ## Contributing
