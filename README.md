@@ -108,19 +108,19 @@ The script will:
 Run the timer with your music folder:
 
 ```bash
-lofi-pomodoro --music-folder /path/to/your/music
+pomodoro --music-folder /path/to/your/music
 ```
 
 Or use the default playlist (if available in `pomodoro/default-playlist/`):
 
 ```bash
-lofi-pomodoro
+pomodoro
 ```
 
 Example with custom settings:
 
 ```bash
-lofi-pomodoro \
+pomodoro \
   --music-folder ./music \
   --work 50 \
   --short 10 \
@@ -132,13 +132,13 @@ lofi-pomodoro \
 Resume a session with remaining time:
 
 ```bash
-lofi-pomodoro --resume 15  # Resume with 15 minutes remaining in first work cycle
+pomodoro --resume 15  # Resume with 15 minutes remaining in first work cycle
 ```
 
 Run without music or break sounds:
 
 ```bash
-lofi-pomodoro --no-work-music --no-break-sound  # Run silently
+pomodoro --no-work-music --no-break-sound  # Run silently
 ```
 
 ### Music Controls
