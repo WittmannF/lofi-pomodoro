@@ -21,8 +21,11 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
-from typing import List, Set
+from typing import List, Optional, Set
+
+_VIDEO_ID_RE = re.compile(r"(?:v=|youtu\.be/)([A-Za-z0-9_-]{11})")
 
 try:
     import yt_dlp
@@ -64,8 +67,22 @@ def mark_done(state_path: str, video_id: str) -> None:
         fh.write(video_id + "\n")
 
 
-def resolve_ids(url: str) -> List[dict]:
-    """Return list of {id, title, url, is_live, filesize_mb} for all videos reachable from url."""
+def _video_id_from_url(url: str) -> Optional[str]:
+    """Extract the 11-char video ID from a plain video URL without a network call."""
+    m = _VIDEO_ID_RE.search(url)
+    return m.group(1) if m else None
+
+
+def resolve_ids(url: str, done: Set[str]) -> List[dict]:
+    """Return list of {id, title, url, is_live, filesize_mb} for all videos reachable from url.
+
+    For plain video URLs whose ID is already in *done*, skip the network call entirely.
+    """
+    # Fast path: single video URL that was already downloaded
+    vid_id = _video_id_from_url(url)
+    if vid_id and vid_id in done:
+        return [{"id": vid_id, "title": vid_id, "url": url, "is_live": False, "filesize_mb": 0, "_already_done": True}]
+
     opts = {
         "quiet": True,
         "no_warnings": True,
@@ -159,7 +176,7 @@ def main() -> None:
     for url in links:
         print(f"\n[>] {url}", flush=True)
         try:
-            entries = resolve_ids(url)
+            entries = resolve_ids(url, done)
         except Exception as exc:
             print(f"  [!] Could not resolve: {exc}", file=sys.stderr)
             continue
@@ -169,7 +186,7 @@ def main() -> None:
             title = entry["title"]
             total_queued += 1
 
-            if vid_id in done:
+            if vid_id in done or entry.get("_already_done"):
                 total_skipped += 1
                 print(f"  ~ skip (already downloaded): {title}")
                 continue
