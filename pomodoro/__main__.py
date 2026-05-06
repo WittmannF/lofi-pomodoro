@@ -281,6 +281,11 @@ def start_key_listener(queues: list[queue.Queue], stop_event: threading.Event) -
                     elif ch.lower() == "i":
                         for q in queues:
                             q.put("ignore")
+                    elif ch.lower() == "q":
+                        for q in queues:
+                            q.put("quit")
+                        stop_event.set()
+                        break
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
 
@@ -299,6 +304,11 @@ def start_key_listener(queues: list[queue.Queue], stop_event: threading.Event) -
                 elif ch.lower() == "i":
                     for q in queues:
                         q.put("ignore")
+                elif ch.lower() == "q":
+                    for q in queues:
+                        q.put("quit")
+                    stop_event.set()
+                    break
             time.sleep(0.1)
 
     worker = _stdin_worker_windows if os.name == "nt" else _stdin_worker_posix
@@ -337,6 +347,10 @@ def beep() -> None:
         print("\a", end="", flush=True)
 
 
+class QuitSession(Exception):
+    pass
+
+
 def run_phase(label: str, seconds: int, timer_queue: queue.Queue) -> None:
     """Render a progress bar for *seconds*."""
     with Progress(
@@ -354,6 +368,8 @@ def run_phase(label: str, seconds: int, timer_queue: queue.Queue) -> None:
             # Check for pause/unpause commands
             try:
                 cmd = timer_queue.get_nowait()
+                if cmd == "quit":
+                    raise QuitSession()
                 if cmd == "toggle_pause":
                     if not paused:
                         # entering pause
@@ -556,32 +572,42 @@ def main() -> None:
     stop_event = threading.Event()
     start_key_listener([control_queue, timer_queue], stop_event)
     print(
-        "🎹  Press 's' to skip, 'p' to pause/unpause timer & music, 'i' to add song to ignored list\n"
+        "🎹  Press 's' to skip, 'p' to pause/unpause, 'i' to ignore song, 'q' to quit\n"
     )
 
     # ---------- Cycles ----------
-    for cycle in range(1, args.cycles + 1):
-        print(f"\n🔄  Cycle {cycle} of {args.cycles}")
-        # Only use remaining time for the first cycle
-        remaining = remaining_work_sec if cycle == 1 else None
-        run_cycle(
-            args.work * 60,
-            args.short * 60,
-            playlist,
-            break_sound,
-            control_queue,
-            timer_queue,
-            remaining,
-            spotify_player=spotify_player,
-        )
+    def _cleanup():
+        stop_event.set()
+        if spotify_player:
+            spotify_player.pause()
+        pygame.mixer.music.stop()
+        pygame.mixer.quit()
 
-    # ---------- Long break ----------
-    print(f"\n🎉  {args.cycles} cycles done — enjoy a longer break!")
-    run_phase("Long Break", args.long * 60, timer_queue)
-    beep()
-    print("\n🏁  All done! Great job.")
+    try:
+        for cycle in range(1, args.cycles + 1):
+            print(f"\n🔄  Cycle {cycle} of {args.cycles}")
+            # Only use remaining time for the first cycle
+            remaining = remaining_work_sec if cycle == 1 else None
+            run_cycle(
+                args.work * 60,
+                args.short * 60,
+                playlist,
+                break_sound,
+                control_queue,
+                timer_queue,
+                remaining,
+                spotify_player=spotify_player,
+            )
 
-    stop_event.set()  # stop the key listener
+        # ---------- Long break ----------
+        print(f"\n🎉  {args.cycles} cycles done — enjoy a longer break!")
+        run_phase("Long Break", args.long * 60, timer_queue)
+        beep()
+        print("\n🏁  All done! Great job.")
+    except (QuitSession, KeyboardInterrupt):
+        print("\n\n👋  Session ended.")
+    finally:
+        _cleanup()
 
 
 if __name__ == "__main__":
