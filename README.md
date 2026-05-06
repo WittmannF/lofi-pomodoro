@@ -211,7 +211,7 @@ During work sessions, you can control the music playback:
 | `--volume`         | Set the volume (0.0 to 1.0)                                                                                     | `1.0`      |
 | `--reset-ignored`  | Reset the list of ignored songs                                                                                 | (optional) |
 | `--spotify`        | Use Spotify for work music (requires Premium)                                                                   | `false`    |
-| `--spotify-playlist` | Spotify playlist/album URI to play during work                                                                | (optional) |
+| `--spotify-playlist` | Playlist preset name (`lofi`, `deep-focus`, `chill`, `jazz`) or full Spotify URI                               | (optional) |
 | `--spotify-device` | Target Spotify device name                                                                                      | (active)   |
 
 ### Spotify Mode
@@ -239,11 +239,35 @@ pomodoro --spotify
 
 The Client ID is saved to `~/.config/pomodoro/spotify.json` and the auth token is cached, so subsequent runs are instant.
 
-**With a specific playlist:**
+**With a preset playlist:**
+
+```bash
+pomodoro --spotify --spotify-playlist lofi
+pomodoro --spotify --spotify-playlist deep-focus
+pomodoro --spotify --spotify-playlist chill
+```
+
+Built-in presets: `lofi`, `lofi-beats`, `jazz`, `deep-focus`, `chill`.
+
+**With a custom Spotify URI:**
 
 ```bash
 pomodoro --spotify --spotify-playlist spotify:playlist:37i9dQZF1DX0SM0LYsmbMT
 ```
+
+**Adding your own presets** — edit `~/.config/pomodoro/spotify.json`:
+
+```json
+{
+  "client_id": "...",
+  "playlists": {
+    "metal": "spotify:playlist:your-uri-here",
+    "ambient": "spotify:playlist:another-uri"
+  }
+}
+```
+
+Then use them by name: `pomodoro --spotify --spotify-playlist metal`
 
 **Targeting a specific device:**
 
