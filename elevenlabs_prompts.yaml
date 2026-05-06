@@ -1,0 +1,118 @@
+# ElevenLabs Music Generation Prompts
+#
+# Prompts are grounded in cognitive science research (docs/music-science-studying.md):
+#
+#   • Instrumental only — lyrics compete with the phonological loop during reading/coding
+#     (Salamé & Baddeley, 1989; Souza & Barbosa, 2023)
+#   • 70–90 BPM sweet spot — matches resting heart rate, maintains calm alpha-wave focus
+#     (Nawaz et al., 2018; Chie & Karthigeyan, 2009)
+#   • Predictable, repetitive harmony — brain habituates quickly, reducing cognitive load
+#     (Winston & Saywood, 2019)
+#   • Positive emotional valence — arousal/mood hypothesis: pleasant music boosts performance
+#     (Thompson, Schellenberg & Husain, 2001)
+#   • Nature textures (rain, birds, water) — "soft fascination" replenishes directed attention
+#     (Attention Restoration Theory, Kaplan, 1995)
+#   • No sudden changes — prevents involuntary attentional orienting (startle response)
+
+output_dir: playlists/elevenlabs
+music_length_ms: 180000   # 3 minutes — good default for a Pomodoro work session
+model_id: music_v1
+
+prompts:
+
+  # ── DEEP FOCUS ──────────────────────────────────────────────────────────────
+  # Classic lo-fi at ~75 BPM. Simple repeated piano melody with subtle vinyl
+  # crackle. Targets alpha brainwave state (8–12 Hz, relaxed wakefulness).
+  - name: lofi-deep-focus
+    prompt: >
+      Calm lo-fi hip hop instrumental at 75 BPM. Soft muted piano melody repeating
+      every 8 bars over a lazy drum groove. Warm vinyl crackle and subtle tape hiss
+      throughout. Gentle bass line. No vocals. Smooth, unhurried, deeply relaxed mood
+      suitable for deep focus work and studying.
+
+  # ── RAIN + LO-FI ────────────────────────────────────────────────────────────
+  # Combines lo-fi with rain — nature sounds provide "soft fascination" that
+  # replenishes directed attention without demanding deliberate focus (ART, Kaplan).
+  # Also functions as auditory masking of distracting environmental noise.
+  - name: lofi-rain
+    prompt: >
+      Lo-fi hip hop instrumental at 72 BPM with continuous gentle rain ambiance layered
+      underneath. Soft Rhodes electric piano chords, light brushed drums, quiet upright
+      bass. The rain sound is constant and soothing — not stormy. No vocals. Cozy,
+      introspective atmosphere. Ideal for studying during a rainy afternoon.
+
+  # ── AMBIENT ALPHA ───────────────────────────────────────────────────────────
+  # Slow-moving ambient drone with no fixed BPM. Designed to induce alpha waves
+  # (relaxed wakefulness) rather than energize. Best for analytical reading where
+  # minimal arousal is optimal (Yerkes-Dodson: complex tasks → lower arousal).
+  - name: ambient-alpha
+    prompt: >
+      Slow ambient electronic music with no percussion. Evolving warm synthesizer pads
+      that shift gradually over 4-minute cycles. Subtle reverb and gentle chorus
+      effects. Occasional distant piano notes. No melody, no beat, no vocals.
+      Deeply calm and meditative — like floating. Designed to minimize cognitive
+      interruption during deep analytical reading or writing.
+
+  # ── BAROQUE-INSPIRED 60 BPM ─────────────────────────────────────────────────
+  # 60 BPM matches resting heart rate exactly, maximizing physiological alignment.
+  # The "Baroque learning effect" hypothesis (though debated) suggests this tempo
+  # promotes an alert, receptive state. Harpsichord timbre adds texture without
+  # emotional pull.
+  - name: baroque-study
+    prompt: >
+      Baroque-inspired instrumental at exactly 60 BPM. Harpsichord playing a simple
+      repeating arpeggiated pattern in a minor key. Quiet cello countermelody.
+      Light reverb suggesting a small stone room. No drums. No vocals. Steady,
+      metronomic pulse. Calm and focused mood — scholarly, like reading in a library.
+      Simple structure with minimal harmonic variation.
+    music_length_ms: 180000
+
+  # ── MORNING ACTIVATION ──────────────────────────────────────────────────────
+  # Slightly higher BPM (85) and positive valence for sessions requiring higher
+  # arousal — morning startup, creative work, or to counter morning sluggishness.
+  # Arousal/mood hypothesis: pleasant + energizing = moderate focus boost.
+  - name: lofi-morning
+    prompt: >
+      Upbeat lo-fi hip hop instrumental at 85 BPM. Bright acoustic guitar picking
+      a cheerful repeating riff. Warm drum machine with a bouncy groove. Subtle
+      keyboard chords. Light vinyl texture. No vocals. Optimistic and energizing
+      mood — like a productive morning with sunlight through the window.
+      Positive emotional tone without being distracting.
+
+  # ── FLOW STATE ──────────────────────────────────────────────────────────────
+  # Steady groove designed to provide "temporal scaffolding" — a consistent
+  # rhythmic structure that organizes attention in time and helps sustain flow
+  # (Csikszentmihalyi, 1992; Stupacher, 2019: rhythmic sync deepens flow).
+  - name: lofi-flow
+    prompt: >
+      Lo-fi instrumental at 78 BPM with a hypnotic, locked-in groove. Four-bar
+      drum loop that never changes. Sparse electric piano chords on the off-beats.
+      Deep, warm bass line. Occasional subtle synth texture in the background.
+      Vinyl crackle. No fills, no drops, no changes — intentionally monotonous
+      and consistent to encourage a flow state during repetitive or coding tasks.
+      No vocals.
+
+  # ── CREATIVE WORK ───────────────────────────────────────────────────────────
+  # ~70 dB moderate ambient arousal is optimal for creative divergent thinking
+  # (Mehta, Zhu & Cheema, 2012). Slightly jazz-influenced to introduce mild
+  # harmonic interest without disrupting focus.
+  - name: jazz-lofi-creative
+    prompt: >
+      Lo-fi jazz fusion instrumental at 80 BPM. Muted jazz trumpet playing a
+      relaxed improvised melody over a shuffled drum groove. Warm upright bass
+      walking pattern. Rhodes piano comping softly. Vinyl crackle and room ambiance.
+      No vocals. Sophisticated and laid-back mood — like a late-night jazz club
+      at low volume. Mild harmonic complexity without being unpredictable.
+
+  # ── NATURE RESTORATION ──────────────────────────────────────────────────────
+  # Pure nature soundscape for break times or cognitive restoration.
+  # Birdsong and water are the most reliably restorative sounds in the literature
+  # (Van Hedger et al., 2019; Ratcliffe, 2021). No music — just soft fascination.
+  - name: nature-restoration
+    prompt: >
+      Peaceful outdoor nature soundscape with no music. Gentle stream or small
+      waterfall in the foreground. Birds singing naturally in the background —
+      varied species, not looping. Light breeze through leaves. Distant sounds
+      of nature. No human-made sounds. No drums, no melody, no instruments.
+      Deeply calming and restorative — like sitting beside a forest stream.
+    music_length_ms: 300000   # 5 min — good for a Pomodoro break
