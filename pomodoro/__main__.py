@@ -490,7 +490,7 @@ def main() -> None:
     parser.add_argument(
         "--spotify-playlist",
         type=str,
-        help="Spotify playlist/album URI (e.g. spotify:playlist:37i9dQZF1DX0SM0LYsmbMT)",
+        help="Spotify playlist: preset name (lofi, deep-focus, chill) or full URI",
     )
     parser.add_argument(
         "--spotify-device",
@@ -516,13 +516,17 @@ def main() -> None:
     spotify_player = None
     if args.spotify:
         try:
-            from pomodoro.spotify_player import SpotifyPlayer
+            from pomodoro.spotify_player import SpotifyPlayer, resolve_playlist
         except ImportError:
             print("[!] spotipy is not installed. Install with: uv pip install -e \".[spotify]\"")
             sys.exit(1)
 
+        playlist_uri = resolve_playlist(args.spotify_playlist)
+        if args.spotify_playlist and playlist_uri is None:
+            sys.exit(1)
+
         spotify_player = SpotifyPlayer(
-            playlist_uri=args.spotify_playlist,
+            playlist_uri=playlist_uri,
             device_name=args.spotify_device,
         )
         if not spotify_player.authenticate():

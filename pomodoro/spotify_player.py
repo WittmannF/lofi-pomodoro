@@ -56,6 +56,34 @@ def get_redirect_uri() -> str:
     return config.get("redirect_uri", DEFAULT_REDIRECT_URI)
 
 
+DEFAULT_PLAYLISTS = {
+    "lofi": "spotify:playlist:37i9dQZF1DX0SM0LYsmbMT",
+    "lofi-beats": "spotify:playlist:37i9dQZF1DX0SM0LYsmbMT",
+    "jazz": "spotify:playlist:37i9dQZF1DX0SM0LYsmbMT",
+    "deep-focus": "spotify:playlist:37i9dQZF1DWZeKCadgRdKQ",
+    "chill": "spotify:playlist:37i9dQZF1DX4WYpdgoIcn6",
+}
+
+
+def resolve_playlist(name_or_uri: str | None) -> str | None:
+    if name_or_uri is None:
+        return None
+    if name_or_uri.startswith("spotify:"):
+        return name_or_uri
+    config = load_config()
+    user_playlists = config.get("playlists", {})
+    if name_or_uri in user_playlists:
+        return user_playlists[name_or_uri]
+    if name_or_uri in DEFAULT_PLAYLISTS:
+        return DEFAULT_PLAYLISTS[name_or_uri]
+    print(f"[Spotify] Unknown playlist preset '{name_or_uri}'. Available:")
+    all_presets = {**DEFAULT_PLAYLISTS, **user_playlists}
+    for k in sorted(all_presets):
+        print(f"  - {k}")
+    print(f"  (or pass a full URI like spotify:playlist:...)")
+    return None
+
+
 def setup_config() -> str | None:
     print("[Spotify] First-time setup.")
     print("[Spotify] You need a Client ID from https://developer.spotify.com/dashboard")
