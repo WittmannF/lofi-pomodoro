@@ -40,8 +40,10 @@ scrape = ["requests", "beautifulsoup4"]
 youtube = ["yt-dlp"]
 # scripts/fix_id3_tags.py
 id3 = ["eyed3"]
+# scripts/generate_music.py
+elevenlabs = ["elevenlabs>=1.0", "pyyaml"]
 # all optional script deps at once
-scripts = ["requests", "beautifulsoup4", "yt-dlp", "eyed3"]
+scripts = ["requests", "beautifulsoup4", "yt-dlp", "eyed3", "elevenlabs>=1.0", "pyyaml"]
 
 [project.urls]
 Homepage = "https://github.com/WittmannF/lofi-pomodoro"

@@ -136,6 +136,70 @@ python scripts/download_youtube.py -o /path/to/music
 
 ---
 
+## generate_music.py
+
+Generates lo-fi focus music tracks using the [ElevenLabs Music API](https://elevenlabs.io/docs/api-reference/music/compose)
+and saves them as MP3s in `playlists/elevenlabs/`. Prompts are read from a YAML
+file and results are cached by content hash to avoid redundant (paid) API calls.
+
+Prompts are grounded in the cognitive science literature — all tracks are
+instrumental, target 70–90 BPM for alpha-wave focus, use predictable structure to
+minimise cognitive load, and incorporate nature textures where relevant.
+See `docs/music-science-studying.md` for the research behind the prompt design.
+
+**Requires:** `uv pip install -e ".[elevenlabs]"` and `ELEVENLABS_API_KEY` in `.env`
+or exported in the shell.
+
+```
+usage: generate_music.py [-h] [--prompts FILE] [--no-cache] [--dry-run]
+
+options:
+  --prompts FILE   YAML prompts file (default: elevenlabs_prompts.yaml)
+  --no-cache       Regenerate even if a cached file already exists
+  --dry-run        Show what would be generated without making API calls
+```
+
+**Examples:**
+
+```bash
+# Generate all tracks defined in elevenlabs_prompts.yaml
+python scripts/generate_music.py
+
+# Preview what would be generated (no API calls)
+python scripts/generate_music.py --dry-run
+
+# Use a custom prompts file
+python scripts/generate_music.py --prompts my_prompts.yaml
+
+# Force regeneration even if cache exists
+python scripts/generate_music.py --no-cache
+
+# Then play the generated tracks with the Pomodoro timer
+pomodoro --music-folder playlists/elevenlabs
+```
+
+**YAML prompt file format** (`elevenlabs_prompts.yaml`):
+
+```yaml
+output_dir: playlists/elevenlabs   # relative to project root
+music_length_ms: 180000            # default length (10000–300000 ms)
+model_id: music_v1                 # ElevenLabs model
+
+prompts:
+  - name: lofi-deep-focus          # used in the output filename
+    prompt: "Calm lo-fi hip hop instrumental at 75 BPM…"
+    music_length_ms: 120000        # optional per-track override
+```
+
+**Notes:**
+- Output filenames: `{name}_{hash}.mp3` — re-running with the same prompt reuses
+  the existing file unless `--no-cache` is passed
+- Generation may consume ElevenLabs credits and may require a paid plan
+- The `nature-restoration` prompt (no music, only nature sounds) is designed for
+  break time; pipe it with `--break-sound` or play it manually during pauses
+
+---
+
 ## fix_id3_tags.py
 
 Strips empty COMM/USLT ID3 frames from MP3 files to silence the pygame/libmpg123 warning:

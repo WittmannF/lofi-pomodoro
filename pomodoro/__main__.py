@@ -16,6 +16,7 @@ import random
 import sys
 import threading
 import time
+import array
 import math
 
 from rich.progress import Progress, TextColumn, BarColumn, TimeRemainingColumn
@@ -319,17 +320,13 @@ def beep() -> None:
         duration = 0.3  # seconds
         frequency = 800  # Hz
 
-        # Generate sine wave
+        # Generate sine wave as signed 16-bit samples (no numpy needed)
         samples = int(sample_rate * duration)
-        wave = []
-        for i in range(samples):
-            wave.append(
-                int(16383 * math.sin(2 * math.pi * frequency * i / sample_rate))
-            )
-
-        # Convert to pygame sound
-        sound_array = pygame.sndarray.array(wave)
-        sound = pygame.sndarray.make_sound(sound_array)
+        wave = array.array(
+            "h",
+            (int(16383 * math.sin(2 * math.pi * frequency * i / sample_rate)) for i in range(samples)),
+        )
+        sound = pygame.sndarray.make_sound(wave)
         sound.play()
 
         # Small delay to ensure sound plays
