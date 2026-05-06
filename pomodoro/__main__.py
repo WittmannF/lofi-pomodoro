@@ -513,6 +513,11 @@ def main() -> None:
         type=str,
         help="target Spotify device name (e.g. 'MacBook Pro')",
     )
+    parser.add_argument(
+        "--spotify-devices",
+        action="store_true",
+        help="list available Spotify devices and exit",
+    )
     args = parser.parse_args()
 
     if not 0.0 <= args.volume <= 1.0:
@@ -521,6 +526,16 @@ def main() -> None:
     # Handle reset ignored songs
     if args.reset_ignored:
         reset_ignored_songs()
+        return
+
+    # Handle --spotify-devices
+    if args.spotify_devices:
+        try:
+            from pomodoro.spotify_player import list_devices
+        except ImportError:
+            print("[!] spotipy is not installed. Install with: uv pip install -e \".[spotify]\"")
+            sys.exit(1)
+        list_devices()
         return
 
     # Convert resume time to seconds if provided

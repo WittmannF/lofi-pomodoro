@@ -102,6 +102,40 @@ def setup_config() -> str | None:
     return client_id
 
 
+def list_devices() -> None:
+    client_id = get_client_id()
+    if not client_id:
+        client_id = setup_config()
+        if not client_id:
+            return
+
+    redirect_uri = get_redirect_uri()
+    os.makedirs(os.path.dirname(CACHE_PATH), exist_ok=True)
+
+    auth_manager = SpotifyPKCE(
+        client_id=client_id,
+        redirect_uri=redirect_uri,
+        scope=SCOPES,
+        cache_path=CACHE_PATH,
+    )
+    sp = spotipy.Spotify(auth_manager=auth_manager)
+
+    try:
+        devices = sp.devices()
+    except Exception as e:
+        print(f"[Spotify] Error fetching devices: {e}")
+        return
+
+    if not devices or not devices.get("devices"):
+        print("[Spotify] No devices found. Open Spotify on any device first.")
+        return
+
+    print("[Spotify] Available devices:")
+    for d in devices["devices"]:
+        status = "active" if d["is_active"] else "inactive"
+        print(f"  - {d['name']} ({d['type']}) [{status}]")
+
+
 class SpotifyPlayer:
     def __init__(self, playlist_uri=None, device_name=None):
         if spotipy is None:
