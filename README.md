@@ -210,6 +210,46 @@ During work sessions, you can control the music playback:
 | `--break-sound`    | Break sound to use: `rain`, `fireplace`, `wind`, `soft-wind`, `random`, or path to custom sound file          | `random`   |
 | `--volume`         | Set the volume (0.0 to 1.0)                                                                                     | `1.0`      |
 | `--reset-ignored`  | Reset the list of ignored songs                                                                                 | (optional) |
+| `--spotify`        | Use Spotify for work music (requires Premium)                                                                   | `false`    |
+| `--spotify-playlist` | Spotify playlist/album URI to play during work                                                                | (optional) |
+| `--spotify-device` | Target Spotify device name                                                                                      | (active)   |
+
+### Spotify Mode
+
+Control your Spotify playback directly during work sessions instead of playing local files. Break sounds (rain, fireplace, etc.) still play locally.
+
+**Requirements:** Spotify Premium + Spotify app open on any device.
+
+**Setup (one-time):**
+
+1. Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) and create an app
+2. Set the Redirect URI to `http://127.0.0.1:8888/callback`
+3. Check "Web API" and save
+4. Install the spotify extra:
+
+```bash
+uv pip install -e ".[spotify]"
+```
+
+5. Run with `--spotify` — on first run it will ask for your Client ID and open the browser for authorization:
+
+```bash
+pomodoro --spotify
+```
+
+The Client ID is saved to `~/.config/pomodoro/spotify.json` and the auth token is cached, so subsequent runs are instant.
+
+**With a specific playlist:**
+
+```bash
+pomodoro --spotify --spotify-playlist spotify:playlist:37i9dQZF1DX0SM0LYsmbMT
+```
+
+**Targeting a specific device:**
+
+```bash
+pomodoro --spotify --spotify-device "MacBook Pro"
+```
 
 ## Development
 

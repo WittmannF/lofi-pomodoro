@@ -395,21 +395,37 @@ def run_cycle(
     control_queue: queue.Queue,
     timer_queue: queue.Queue,
     remaining_work_sec: int | None = None,
+    spotify_player=None,
 ) -> None:
     """Single work → break cycle."""
     # ---- Work Phase ----
-    music_thread = threading.Thread(
-        target=music_player_loop,
-        args=(playlist, control_queue, True),
-        daemon=True,
-    )
+    if spotify_player:
+        from pomodoro.spotify_player import spotify_player_loop
+
+        spotify_stop = threading.Event()
+        music_thread = threading.Thread(
+            target=spotify_player_loop,
+            args=(spotify_player, control_queue, spotify_stop),
+            daemon=True,
+        )
+    else:
+        spotify_stop = None
+        music_thread = threading.Thread(
+            target=music_player_loop,
+            args=(playlist, control_queue, True),
+            daemon=True,
+        )
     music_thread.start()
 
     # Use remaining time if provided, otherwise use full work time
     total_work = remaining_work_sec if remaining_work_sec is not None else work_sec
     run_phase("Work", total_work, timer_queue)
 
-    pygame.mixer.music.stop()
+    if spotify_player:
+        spotify_stop.set()
+        spotify_player.pause()
+    else:
+        pygame.mixer.music.stop()
     beep()
     print("\n🛀  Time for a break!\n")
 
@@ -466,6 +482,21 @@ def main() -> None:
         action="store_true",
         help="reset the list of ignored songs",
     )
+    parser.add_argument(
+        "--spotify",
+        action="store_true",
+        help="use Spotify for work music (requires Premium + SPOTIPY_CLIENT_ID)",
+    )
+    parser.add_argument(
+        "--spotify-playlist",
+        type=str,
+        help="Spotify playlist/album URI (e.g. spotify:playlist:37i9dQZF1DX0SM0LYsmbMT)",
+    )
+    parser.add_argument(
+        "--spotify-device",
+        type=str,
+        help="target Spotify device name (e.g. 'MacBook Pro')",
+    )
     args = parser.parse_args()
 
     if not 0.0 <= args.volume <= 1.0:
@@ -481,9 +512,25 @@ def main() -> None:
     if remaining_work_sec is not None:
         print(f"\n⏱️  Resuming with {args.resume} minutes remaining in first work cycle")
 
+    # ---------- Spotify mode ----------
+    spotify_player = None
+    if args.spotify:
+        try:
+            from pomodoro.spotify_player import SpotifyPlayer
+        except ImportError:
+            print("[!] spotipy is not installed. Install with: uv pip install -e \".[spotify]\"")
+            sys.exit(1)
+
+        spotify_player = SpotifyPlayer(
+            playlist_uri=args.spotify_playlist,
+            device_name=args.spotify_device,
+        )
+        if not spotify_player.authenticate():
+            sys.exit(1)
+
     # ---------- Load audio ----------
     playlist: list[str] = []
-    if not args.no_work_music:
+    if not args.spotify and not args.no_work_music:
         if args.music_folder:
             playlist = load_music_files(args.music_folder)
         else:
@@ -521,6 +568,7 @@ def main() -> None:
             control_queue,
             timer_queue,
             remaining,
+            spotify_player=spotify_player,
         )
 
     # ---------- Long break ----------
