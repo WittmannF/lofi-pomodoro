@@ -147,9 +147,11 @@ class SpotifyPlayer:
             print(f"[Spotify] Active device: {active['name']}")
             return active["id"]
 
-        fallback = device_list[0]
-        print(f"[Spotify] No active device, using: {fallback['name']}")
-        return fallback["id"]
+        print("[Spotify] No active device found. Open Spotify on your computer or phone and play any track for a second, then try again.")
+        print("[Spotify] Available devices (inactive):")
+        for d in device_list:
+            print(f"  - {d['name']} ({d['type']})")
+        return None
 
     def play(self) -> None:
         try:
@@ -162,6 +164,9 @@ class SpotifyPlayer:
         except SpotifyException as e:
             if e.http_status == 403:
                 print("[Spotify] Error: Spotify Premium is required for playback control.")
+                raise
+            if e.http_status == 404:
+                print("[Spotify] Error: Device not reachable. Open Spotify and play a track for a second, then retry.")
                 raise
             print(f"[Spotify] Playback error: {e}")
 
