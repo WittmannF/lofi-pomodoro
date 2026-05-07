@@ -131,9 +131,9 @@ def list_devices() -> None:
         return
 
     print("[Spotify] Available devices:")
-    for d in devices["devices"]:
+    for i, d in enumerate(devices["devices"], 1):
         status = "active" if d["is_active"] else "inactive"
-        print(f"  - {d['name']} ({d['type']}) [{status}]")
+        print(f"  {i}. {d['name']} ({d['type']}) [{status}]")
 
 
 class SpotifyPlayer:
@@ -195,13 +195,23 @@ class SpotifyPlayer:
         device_list = devices["devices"]
 
         if self.device_name:
+            if self.device_name.isdigit():
+                idx = int(self.device_name) - 1
+                if 0 <= idx < len(device_list):
+                    chosen = device_list[idx]
+                    print(f"[Spotify] Using device: {chosen['name']}")
+                    return chosen["id"]
+                print(f"[Spotify] Device #{self.device_name} out of range. Available:")
+                for i, d in enumerate(device_list, 1):
+                    print(f"  {i}. {d['name']} ({d['type']})")
+                return None
             for d in device_list:
                 if d["name"].lower() == self.device_name.lower():
                     print(f"[Spotify] Using device: {d['name']}")
                     return d["id"]
             print(f"[Spotify] Device '{self.device_name}' not found. Available:")
-            for d in device_list:
-                print(f"  - {d['name']} ({d['type']})")
+            for i, d in enumerate(device_list, 1):
+                print(f"  {i}. {d['name']} ({d['type']})")
             return None
 
         active = next((d for d in device_list if d["is_active"]), None)
