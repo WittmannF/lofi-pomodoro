@@ -41,12 +41,13 @@ Important constraints:
 | Flag | Default | Purpose |
 |------|---------|---------|
 | `--spotify` | false | Enable Spotify mode (replaces local music player) |
-| `--spotify-playlist` | user's active playback | Spotify playlist/album URI (e.g. `spotify:playlist:37i9dQZF1DX0SM0LYsmbMT`) |
-| `--spotify-device` | active device | Target device name (e.g. `"MacBook Pro"`) |
+| `--spotify-playlist` | user's active playback | Preset name (`lofi`, `deep-focus`, `chill`, `jazz`) or full Spotify URI |
+| `--spotify-device` | active device | Target device by name, number (from `--spotify-devices`), or ID |
+| `--spotify-devices` | — | List available Spotify devices and exit |
 
-Credentials come from environment variables only — no CLI flags for secrets:
-- `SPOTIPY_CLIENT_ID` (required)
-- `SPOTIPY_REDIRECT_URI` (optional, default `http://localhost:8888/callback`)
+Credentials are resolved in order: `SPOTIPY_CLIENT_ID` env var → `~/.config/pomodoro/spotify.json`. On first run without either, the app prompts for the Client ID and saves it.
+
+Default redirect URI: `http://127.0.0.1:8888/callback` (override via `SPOTIPY_REDIRECT_URI`).
 
 ---
 

@@ -10,7 +10,7 @@ authors = [
 ]
 description = "A CLI Pomodoro timer with lofi music"
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.10"
 license = "MIT"
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -29,7 +29,7 @@ keywords = ["pomodoro", "timer", "productivity", "lofi", "music"]
 dependencies = [
     "rich>=10.0.0",
     "pygame>=2.0.0",
-    "numpy",
+    "numpy>=1.21.0",
     "pynput",
     "psutil>=5.9.0",
 ]

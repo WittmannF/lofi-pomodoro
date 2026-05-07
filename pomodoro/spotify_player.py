@@ -87,7 +87,7 @@ def resolve_playlist(name_or_uri: str | None) -> str | None:
 def setup_config() -> str | None:
     print("[Spotify] First-time setup.")
     print("[Spotify] You need a Client ID from https://developer.spotify.com/dashboard")
-    print("[Spotify] Create an app, set redirect URI to: https://localhost:8888/callback")
+    print(f"[Spotify] Create an app, set redirect URI to: {DEFAULT_REDIRECT_URI}")
     print()
     client_id = input("[Spotify] Paste your Client ID: ").strip()
     if not client_id:

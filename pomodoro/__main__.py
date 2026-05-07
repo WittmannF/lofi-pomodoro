@@ -185,12 +185,14 @@ def music_player_loop(
     playlist: list[str],
     control_queue: queue.Queue,
     loop_forever: bool = False,
+    stop_event: threading.Event | None = None,
 ):
     """
     Continuously play random tracks.  Reacts to commands from *control_queue*:
         - "skip" → stop current track and play the next
         - "toggle_pause" → pause/unpause playback
         - "ignore" → add current track to ignored songs list
+    Exits when *stop_event* is set.
     """
     if not playlist:
         return
@@ -198,7 +200,7 @@ def music_player_loop(
     pygame.mixer.init()
     played: set[str] = set()
 
-    while True:
+    while not (stop_event and stop_event.is_set()):
         # Reset list if all songs played and we want endless music
         if not playlist:
             break
@@ -223,14 +225,13 @@ def music_player_loop(
 
         # Wait until song ends, is skipped, is paused/unpaused, or is ignored
         paused = False
-        while pygame.mixer.music.get_busy() or paused:
+        while (pygame.mixer.music.get_busy() or paused) and not (stop_event and stop_event.is_set()):
             try:
                 cmd = control_queue.get_nowait()
-                # Backwards-compatibility: old code enqueued True for skips
                 if cmd is True or cmd == "skip":
                     pygame.mixer.music.stop()
-                    paused = False  # ensure not stuck in paused loop
-                    break  # move to next track
+                    paused = False
+                    break
                 elif cmd == "toggle_pause":
                     if paused:
                         pygame.mixer.music.unpause()
@@ -241,11 +242,16 @@ def music_player_loop(
                 elif cmd == "ignore":
                     add_to_ignored_songs(track)
                     pygame.mixer.music.stop()
-                    paused = False  # ensure not stuck in paused loop
-                    break  # move to next track
+                    paused = False
+                    break
+                elif cmd == "quit":
+                    pygame.mixer.music.stop()
+                    return
             except queue.Empty:
                 pass
             time.sleep(0.2)
+
+    pygame.mixer.music.stop()
 
 
 # --------------------------------------------------------------------------- #
@@ -415,20 +421,19 @@ def run_cycle(
 ) -> None:
     """Single work → break cycle."""
     # ---- Work Phase ----
+    music_stop = threading.Event()
     if spotify_player:
         from pomodoro.spotify_player import spotify_player_loop
 
-        spotify_stop = threading.Event()
         music_thread = threading.Thread(
             target=spotify_player_loop,
-            args=(spotify_player, control_queue, spotify_stop),
+            args=(spotify_player, control_queue, music_stop),
             daemon=True,
         )
     else:
-        spotify_stop = None
         music_thread = threading.Thread(
             target=music_player_loop,
-            args=(playlist, control_queue, True),
+            args=(playlist, control_queue, True, music_stop),
             daemon=True,
         )
     music_thread.start()
@@ -437,11 +442,18 @@ def run_cycle(
     total_work = remaining_work_sec if remaining_work_sec is not None else work_sec
     run_phase("Work", total_work, timer_queue)
 
+    music_stop.set()
     if spotify_player:
-        spotify_stop.set()
         spotify_player.pause()
     else:
         pygame.mixer.music.stop()
+
+    # Drain control_queue to avoid stale commands leaking into next phase
+    while not control_queue.empty():
+        try:
+            control_queue.get_nowait()
+        except queue.Empty:
+            break
     beep()
     print("\n🛀  Time for a break!\n")
 
@@ -501,7 +513,7 @@ def main() -> None:
     parser.add_argument(
         "--spotify",
         action="store_true",
-        help="use Spotify for work music (requires Premium + SPOTIPY_CLIENT_ID)",
+        help="use Spotify for work music (requires Premium; prompts for Client ID on first run)",
     )
     parser.add_argument(
         "--spotify-playlist",
@@ -530,11 +542,7 @@ def main() -> None:
 
     # Handle --spotify-devices
     if args.spotify_devices:
-        try:
-            from pomodoro.spotify_player import list_devices
-        except ImportError:
-            print("[!] spotipy is not installed. Install with: uv pip install -e \".[spotify]\"")
-            sys.exit(1)
+        from pomodoro.spotify_player import list_devices
         list_devices()
         return
 
@@ -546,20 +554,21 @@ def main() -> None:
     # ---------- Spotify mode ----------
     spotify_player = None
     if args.spotify:
+        from pomodoro.spotify_player import SpotifyPlayer, resolve_playlist
+
         try:
-            from pomodoro.spotify_player import SpotifyPlayer, resolve_playlist
-        except ImportError:
-            print("[!] spotipy is not installed. Install with: uv pip install -e \".[spotify]\"")
+            playlist_uri = resolve_playlist(args.spotify_playlist)
+            if args.spotify_playlist and playlist_uri is None:
+                sys.exit(1)
+
+            spotify_player = SpotifyPlayer(
+                playlist_uri=playlist_uri,
+                device_name=args.spotify_device,
+            )
+        except RuntimeError as e:
+            print(f"[!] {e}")
             sys.exit(1)
 
-        playlist_uri = resolve_playlist(args.spotify_playlist)
-        if args.spotify_playlist and playlist_uri is None:
-            sys.exit(1)
-
-        spotify_player = SpotifyPlayer(
-            playlist_uri=playlist_uri,
-            device_name=args.spotify_device,
-        )
         if not spotify_player.authenticate():
             sys.exit(1)
 
