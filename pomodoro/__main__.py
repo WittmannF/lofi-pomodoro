@@ -185,12 +185,14 @@ def music_player_loop(
     playlist: list[str],
     control_queue: queue.Queue,
     loop_forever: bool = False,
+    stop_event: threading.Event | None = None,
 ):
     """
     Continuously play random tracks.  Reacts to commands from *control_queue*:
         - "skip" → stop current track and play the next
         - "toggle_pause" → pause/unpause playback
         - "ignore" → add current track to ignored songs list
+    Exits when *stop_event* is set.
     """
     if not playlist:
         return
@@ -198,7 +200,7 @@ def music_player_loop(
     pygame.mixer.init()
     played: set[str] = set()
 
-    while True:
+    while not (stop_event and stop_event.is_set()):
         # Reset list if all songs played and we want endless music
         if not playlist:
             break
@@ -223,14 +225,13 @@ def music_player_loop(
 
         # Wait until song ends, is skipped, is paused/unpaused, or is ignored
         paused = False
-        while pygame.mixer.music.get_busy() or paused:
+        while (pygame.mixer.music.get_busy() or paused) and not (stop_event and stop_event.is_set()):
             try:
                 cmd = control_queue.get_nowait()
-                # Backwards-compatibility: old code enqueued True for skips
                 if cmd is True or cmd == "skip":
                     pygame.mixer.music.stop()
-                    paused = False  # ensure not stuck in paused loop
-                    break  # move to next track
+                    paused = False
+                    break
                 elif cmd == "toggle_pause":
                     if paused:
                         pygame.mixer.music.unpause()
@@ -241,11 +242,16 @@ def music_player_loop(
                 elif cmd == "ignore":
                     add_to_ignored_songs(track)
                     pygame.mixer.music.stop()
-                    paused = False  # ensure not stuck in paused loop
-                    break  # move to next track
+                    paused = False
+                    break
+                elif cmd == "quit":
+                    pygame.mixer.music.stop()
+                    return
             except queue.Empty:
                 pass
             time.sleep(0.2)
+
+    pygame.mixer.music.stop()
 
 
 # --------------------------------------------------------------------------- #
@@ -281,6 +287,11 @@ def start_key_listener(queues: list[queue.Queue], stop_event: threading.Event) -
                     elif ch.lower() == "i":
                         for q in queues:
                             q.put("ignore")
+                    elif ch.lower() == "q":
+                        for q in queues:
+                            q.put("quit")
+                        stop_event.set()
+                        break
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
 
@@ -299,6 +310,11 @@ def start_key_listener(queues: list[queue.Queue], stop_event: threading.Event) -
                 elif ch.lower() == "i":
                     for q in queues:
                         q.put("ignore")
+                elif ch.lower() == "q":
+                    for q in queues:
+                        q.put("quit")
+                    stop_event.set()
+                    break
             time.sleep(0.1)
 
     worker = _stdin_worker_windows if os.name == "nt" else _stdin_worker_posix
@@ -337,6 +353,10 @@ def beep() -> None:
         print("\a", end="", flush=True)
 
 
+class QuitSession(Exception):
+    pass
+
+
 def run_phase(label: str, seconds: int, timer_queue: queue.Queue) -> None:
     """Render a progress bar for *seconds*."""
     with Progress(
@@ -354,6 +374,8 @@ def run_phase(label: str, seconds: int, timer_queue: queue.Queue) -> None:
             # Check for pause/unpause commands
             try:
                 cmd = timer_queue.get_nowait()
+                if cmd == "quit":
+                    raise QuitSession()
                 if cmd == "toggle_pause":
                     if not paused:
                         # entering pause
@@ -395,21 +417,43 @@ def run_cycle(
     control_queue: queue.Queue,
     timer_queue: queue.Queue,
     remaining_work_sec: int | None = None,
+    spotify_player=None,
 ) -> None:
     """Single work → break cycle."""
     # ---- Work Phase ----
-    music_thread = threading.Thread(
-        target=music_player_loop,
-        args=(playlist, control_queue, True),
-        daemon=True,
-    )
+    music_stop = threading.Event()
+    if spotify_player:
+        from pomodoro.spotify_player import spotify_player_loop
+
+        music_thread = threading.Thread(
+            target=spotify_player_loop,
+            args=(spotify_player, control_queue, music_stop),
+            daemon=True,
+        )
+    else:
+        music_thread = threading.Thread(
+            target=music_player_loop,
+            args=(playlist, control_queue, True, music_stop),
+            daemon=True,
+        )
     music_thread.start()
 
     # Use remaining time if provided, otherwise use full work time
     total_work = remaining_work_sec if remaining_work_sec is not None else work_sec
     run_phase("Work", total_work, timer_queue)
 
-    pygame.mixer.music.stop()
+    music_stop.set()
+    if spotify_player:
+        spotify_player.pause()
+    else:
+        pygame.mixer.music.stop()
+
+    # Drain control_queue to avoid stale commands leaking into next phase
+    while not control_queue.empty():
+        try:
+            control_queue.get_nowait()
+        except queue.Empty:
+            break
     beep()
     print("\n🛀  Time for a break!\n")
 
@@ -466,6 +510,26 @@ def main() -> None:
         action="store_true",
         help="reset the list of ignored songs",
     )
+    parser.add_argument(
+        "--spotify",
+        action="store_true",
+        help="use Spotify for work music (requires Premium; prompts for Client ID on first run)",
+    )
+    parser.add_argument(
+        "--spotify-playlist",
+        type=str,
+        help="Spotify playlist: preset name (lofi, deep-focus, chill) or full URI",
+    )
+    parser.add_argument(
+        "--spotify-device",
+        type=str,
+        help="target Spotify device name (e.g. 'MacBook Pro')",
+    )
+    parser.add_argument(
+        "--spotify-devices",
+        action="store_true",
+        help="list available Spotify devices and exit",
+    )
     args = parser.parse_args()
 
     if not 0.0 <= args.volume <= 1.0:
@@ -476,14 +540,41 @@ def main() -> None:
         reset_ignored_songs()
         return
 
+    # Handle --spotify-devices
+    if args.spotify_devices:
+        from pomodoro.spotify_player import list_devices
+        list_devices()
+        return
+
     # Convert resume time to seconds if provided
     remaining_work_sec = args.resume * 60 if args.resume is not None else None
     if remaining_work_sec is not None:
         print(f"\n⏱️  Resuming with {args.resume} minutes remaining in first work cycle")
 
+    # ---------- Spotify mode ----------
+    spotify_player = None
+    if args.spotify:
+        from pomodoro.spotify_player import SpotifyPlayer, resolve_playlist
+
+        try:
+            playlist_uri = resolve_playlist(args.spotify_playlist)
+            if args.spotify_playlist and playlist_uri is None:
+                sys.exit(1)
+
+            spotify_player = SpotifyPlayer(
+                playlist_uri=playlist_uri,
+                device_name=args.spotify_device,
+            )
+        except RuntimeError as e:
+            print(f"[!] {e}")
+            sys.exit(1)
+
+        if not spotify_player.authenticate():
+            sys.exit(1)
+
     # ---------- Load audio ----------
     playlist: list[str] = []
-    if not args.no_work_music:
+    if not args.spotify and not args.no_work_music:
         if args.music_folder:
             playlist = load_music_files(args.music_folder)
         else:
@@ -505,31 +596,42 @@ def main() -> None:
     stop_event = threading.Event()
     start_key_listener([control_queue, timer_queue], stop_event)
     print(
-        "🎹  Press 's' to skip, 'p' to pause/unpause timer & music, 'i' to add song to ignored list\n"
+        "🎹  Press 's' to skip, 'p' to pause/unpause, 'i' to ignore song, 'q' to quit\n"
     )
 
     # ---------- Cycles ----------
-    for cycle in range(1, args.cycles + 1):
-        print(f"\n🔄  Cycle {cycle} of {args.cycles}")
-        # Only use remaining time for the first cycle
-        remaining = remaining_work_sec if cycle == 1 else None
-        run_cycle(
-            args.work * 60,
-            args.short * 60,
-            playlist,
-            break_sound,
-            control_queue,
-            timer_queue,
-            remaining,
-        )
+    def _cleanup():
+        stop_event.set()
+        if spotify_player:
+            spotify_player.pause()
+        pygame.mixer.music.stop()
+        pygame.mixer.quit()
 
-    # ---------- Long break ----------
-    print(f"\n🎉  {args.cycles} cycles done — enjoy a longer break!")
-    run_phase("Long Break", args.long * 60, timer_queue)
-    beep()
-    print("\n🏁  All done! Great job.")
+    try:
+        for cycle in range(1, args.cycles + 1):
+            print(f"\n🔄  Cycle {cycle} of {args.cycles}")
+            # Only use remaining time for the first cycle
+            remaining = remaining_work_sec if cycle == 1 else None
+            run_cycle(
+                args.work * 60,
+                args.short * 60,
+                playlist,
+                break_sound,
+                control_queue,
+                timer_queue,
+                remaining,
+                spotify_player=spotify_player,
+            )
 
-    stop_event.set()  # stop the key listener
+        # ---------- Long break ----------
+        print(f"\n🎉  {args.cycles} cycles done — enjoy a longer break!")
+        run_phase("Long Break", args.long * 60, timer_queue)
+        beep()
+        print("\n🏁  All done! Great job.")
+    except (QuitSession, KeyboardInterrupt):
+        print("\n\n👋  Session ended.")
+    finally:
+        _cleanup()
 
 
 if __name__ == "__main__":
