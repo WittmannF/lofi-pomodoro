@@ -183,3 +183,6 @@ cython_debug/
 
 # Pomodoro ignored songs
 .ignored_songs
+
+# Spotipy token cache
+.cache-*
