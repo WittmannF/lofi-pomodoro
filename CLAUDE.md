@@ -12,6 +12,15 @@ source .venv/bin/activate
 uv pip install -e .
 ```
 
+Optional extras:
+
+```bash
+uv pip install -e ".[spotify]"   # Spotify playback control (requires Premium)
+uv pip install -e ".[youtube]"   # yt-dlp for download_youtube.py (also needs ffmpeg)
+uv pip install -e ".[scrape]"    # requests + bs4 for FMA/Chosic scrapers
+uv pip install -e ".[id3]"       # eyed3 for fix_id3_tags.py
+```
+
 Run the timer:
 
 ```bash
@@ -64,4 +73,30 @@ Default playlist (250+ lo-fi tracks) ships inside the package at `pomodoro/defau
 | `--resume` | — | Minutes remaining in first work cycle |
 | `--reset-ignored` | false | Clear `.ignored_songs` |
 
-Keyboard shortcuts during a session: `s` skip song, `p` pause/unpause, `i` ignore song.
+Keyboard shortcuts during a session: `s` skip song, `p` pause/unpause, `i` ignore song, `q` quit.
+
+## Spotify Mode
+
+`pomodoro/spotify_player.py` contains a separate module that provides a drop-in replacement for the local music thread. It uses Spotipy with PKCE auth (no client secret); credentials are stored at `~/.config/pomodoro/spotify.json`.
+
+```bash
+pomodoro --spotify                                  # prompts for Client ID on first run
+pomodoro --spotify --spotify-playlist deep-focus    # preset: lofi / deep-focus / chill
+pomodoro --spotify --spotify-playlist "spotify:playlist:..."
+pomodoro --spotify-devices                          # list available devices and exit
+pomodoro --spotify --spotify-device "MacBook Pro"   # target a specific device
+```
+
+`spotify_player_loop()` in that module mirrors the same `control_queue` interface as `music_player_loop()`, so `run_cycle()` branches on `spotify_player` being set without changing the core flow.
+
+## Scripts
+
+Utility scripts in `scripts/` (not part of the installed package):
+
+| Script | Extra | Purpose |
+|--------|-------|---------|
+| `scrape_songs.py` | `scrape` | Download free lo-fi tracks from Chosic |
+| `scrape_fma.py` | `scrape` | Download tracks from Free Music Archive |
+| `download_youtube.py` | `youtube` | Download audio from YouTube into the playlist |
+| `fix_id3_tags.py` | `id3` | Clean/normalize ID3 tags on downloaded MP3s |
+| `generate_music.py` | `elevenlabs` | Generate music via ElevenLabs API |
