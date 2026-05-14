@@ -357,6 +357,52 @@ class QuitSession(Exception):
     pass
 
 
+def _snooze_prompt(snooze_sec: int, snooze_count: int) -> int:
+    """
+    Show the end-of-work snooze prompt. Waits up to 10 s for a keypress.
+    Returns extra seconds to add (snooze_sec) or 0 if the user chose to break.
+    """
+    import select
+    import termios
+    import tty
+
+    if snooze_count >= 2:
+        worked_approx = snooze_count * snooze_sec // 60
+        print(
+            f"\n⚠️   You've been in snooze mode for ~{worked_approx} extra min — "
+            "cognitive depletion is invisible during flow. Consider a proper break soon."
+        )
+
+    snooze_min = snooze_sec // 60
+    print(
+        f"\n🍅  Time for a break! Press Enter to start break, "
+        f"or 's' to snooze {snooze_min} min. (auto-break in 10 s)"
+    )
+
+    # On Windows fall back to a simple input() — snooze still works, just no timeout
+    if os.name == "nt":
+        try:
+            ch = input().strip().lower()
+        except EOFError:
+            ch = ""
+        return snooze_sec if ch == "s" else 0
+
+    fd = sys.stdin.fileno()
+    old_attrs = termios.tcgetattr(fd)
+    try:
+        tty.setcbreak(fd)
+        r, _, _ = select.select([sys.stdin], [], [], 10)
+        if r:
+            ch = sys.stdin.read(1).lower()
+            if ch == "s":
+                print(f"😴  Snoozing for {snooze_min} min…")
+                return snooze_sec
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
+
+    return 0
+
+
 def run_phase(label: str, seconds: int, timer_queue: queue.Queue) -> None:
     """Render a progress bar for *seconds*."""
     with Progress(
@@ -418,44 +464,58 @@ def run_cycle(
     timer_queue: queue.Queue,
     remaining_work_sec: int | None = None,
     spotify_player=None,
+    snooze_sec: int = 0,
 ) -> None:
     """Single work → break cycle."""
-    # ---- Work Phase ----
-    music_stop = threading.Event()
-    if spotify_player:
-        from pomodoro.spotify_player import spotify_player_loop
-
-        music_thread = threading.Thread(
-            target=spotify_player_loop,
-            args=(spotify_player, control_queue, music_stop),
-            daemon=True,
-        )
-    else:
-        music_thread = threading.Thread(
-            target=music_player_loop,
-            args=(playlist, control_queue, True, music_stop),
-            daemon=True,
-        )
-    music_thread.start()
-
-    # Use remaining time if provided, otherwise use full work time
+    # ---- Work Phase (with optional snooze loop) ----
+    snooze_count = 0
     total_work = remaining_work_sec if remaining_work_sec is not None else work_sec
-    run_phase("Work", total_work, timer_queue)
 
-    music_stop.set()
-    if spotify_player:
-        spotify_player.pause()
-    else:
-        pygame.mixer.music.stop()
+    while True:
+        music_stop = threading.Event()
+        if spotify_player:
+            from pomodoro.spotify_player import spotify_player_loop
 
-    # Drain control_queue to avoid stale commands leaking into next phase
-    while not control_queue.empty():
-        try:
-            control_queue.get_nowait()
-        except queue.Empty:
-            break
-    beep()
-    print("\n🛀  Time for a break!\n")
+            music_thread = threading.Thread(
+                target=spotify_player_loop,
+                args=(spotify_player, control_queue, music_stop),
+                daemon=True,
+            )
+        else:
+            music_thread = threading.Thread(
+                target=music_player_loop,
+                args=(playlist, control_queue, True, music_stop),
+                daemon=True,
+            )
+        music_thread.start()
+        run_phase("Work" if snooze_count == 0 else "Snooze", total_work, timer_queue)
+
+        music_stop.set()
+        if spotify_player:
+            spotify_player.pause()
+        else:
+            pygame.mixer.music.stop()
+
+        # Drain control_queue to avoid stale commands leaking into next phase
+        while not control_queue.empty():
+            try:
+                control_queue.get_nowait()
+            except queue.Empty:
+                break
+
+        beep()
+
+        # Snooze prompt (only if snooze is enabled)
+        if snooze_sec > 0:
+            extra = _snooze_prompt(snooze_sec, snooze_count)
+            if extra > 0:
+                snooze_count += 1
+                total_work = extra
+                continue  # restart work phase for snooze duration
+
+        break  # proceed to break
+
+    print("\n🛀  Starting break…\n")
 
     # ---- Break Phase ----
     if break_sound:
@@ -509,6 +569,13 @@ def main() -> None:
         "--reset-ignored",
         action="store_true",
         help="reset the list of ignored songs",
+    )
+    parser.add_argument(
+        "--snooze",
+        type=int,
+        default=10,
+        metavar="N",
+        help="snooze duration in minutes when prompted at end of work phase (default: 10; 0 to disable)",
     )
     parser.add_argument(
         "--spotify",
@@ -595,8 +662,9 @@ def main() -> None:
     timer_queue: queue.Queue = queue.Queue()
     stop_event = threading.Event()
     start_key_listener([control_queue, timer_queue], stop_event)
+    snooze_hint = f", 's' to snooze {args.snooze} min" if args.snooze > 0 else ""
     print(
-        "🎹  Press 's' to skip, 'p' to pause/unpause, 'i' to ignore song, 'q' to quit\n"
+        f"🎹  Press 's' to skip, 'p' to pause/unpause, 'i' to ignore song, 'q' to quit{snooze_hint}\n"
     )
 
     # ---------- Cycles ----------
@@ -621,6 +689,7 @@ def main() -> None:
                 timer_queue,
                 remaining,
                 spotify_player=spotify_player,
+                snooze_sec=args.snooze * 60,
             )
 
         # ---------- Long break ----------
