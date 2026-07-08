@@ -40,6 +40,16 @@ def save_config(config: dict) -> None:
         json.dump(config, f, indent=2)
 
 
+def print_auth_error_help(error: Exception) -> None:
+    print(f"[Spotify] Authentication failed: {error}")
+
+    error_text = str(error).lower()
+    if "invalid_grant" in error_text or "refresh token revoked" in error_text:
+        print("[Spotify] Your saved Spotify login token is no longer valid.")
+        print("[Spotify] Remove the cached token and run pomodoro again to log in:")
+        print(f"  rm {CACHE_PATH}")
+
+
 def get_client_id() -> str | None:
     env_val = os.environ.get("SPOTIPY_CLIENT_ID")
     if env_val:
@@ -173,7 +183,7 @@ class SpotifyPlayer:
             user = self.sp.current_user()
             print(f"[Spotify] Authenticated as {user['display_name']}")
         except Exception as e:
-            print(f"[Spotify] Authentication failed: {e}")
+            print_auth_error_help(e)
             return False
 
         self._device_id = self._resolve_device()

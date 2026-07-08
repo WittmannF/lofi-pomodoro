@@ -72,8 +72,9 @@ Default playlist (250+ lo-fi tracks) ships inside the package at `pomodoro/defau
 | `--volume` | 1.0 | 0.0–1.0 |
 | `--resume` | — | Minutes remaining in first work cycle |
 | `--reset-ignored` | false | Clear `.ignored_songs` |
+| `--snooze` | 10 | Snooze duration in minutes at end of work phase (0 to disable) |
 
-Keyboard shortcuts during a session: `s` skip song, `p` pause/unpause, `i` ignore song, `q` quit.
+Keyboard shortcuts during a session: `s` skip song / snooze (at end-of-work prompt), `p` pause/unpause, `i` ignore song, `q` quit.
 
 ## Spotify Mode
 
