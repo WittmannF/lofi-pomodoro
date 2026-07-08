@@ -260,16 +260,13 @@ def music_player_loop(
 def start_key_listener(
     queues: list[queue.Queue],
     stop_event: threading.Event,
-    suspend_event: threading.Event | None = None,
 ) -> None:
     """
     Background thread reading a single keystroke.
 
-    Press **S** to skip, **P** to pause/unpause, or **I** to ignore song in the same terminal.
+    Press **S** to skip, **P** to pause/unpause, **I** to ignore song, **A** to add time
+    (extends work phase) or abort break (during break phase).
     Uses only std-lib (termios/tty on POSIX or msvcrt on Windows).
-
-    When *suspend_event* is set, the listener idles without consuming stdin
-    so that interactive prompts (e.g. snooze) can read directly from the terminal.
     """
 
     def _stdin_worker_posix() -> None:  # Unix, macOS, Linux
@@ -282,9 +279,6 @@ def start_key_listener(
         tty.setcbreak(fd)  # raw mode – no Enter needed
         try:
             while not stop_event.is_set():
-                if suspend_event and suspend_event.is_set():
-                    time.sleep(0.05)
-                    continue
                 r, _, _ = select.select([sys.stdin], [], [], 0.1)
                 if r:
                     ch = sys.stdin.read(1)
@@ -297,6 +291,9 @@ def start_key_listener(
                     elif ch.lower() == "i":
                         for q in queues:
                             q.put("ignore")
+                    elif ch.lower() == "a":
+                        for q in queues:
+                            q.put("extend")
                     elif ch.lower() == "q":
                         for q in queues:
                             q.put("quit")
@@ -309,9 +306,6 @@ def start_key_listener(
         import msvcrt
 
         while not stop_event.is_set():
-            if suspend_event and suspend_event.is_set():
-                time.sleep(0.05)
-                continue
             if msvcrt.kbhit():
                 ch = msvcrt.getwch()
                 if ch.lower() == "s":
@@ -323,6 +317,9 @@ def start_key_listener(
                 elif ch.lower() == "i":
                     for q in queues:
                         q.put("ignore")
+                elif ch.lower() == "a":
+                    for q in queues:
+                        q.put("extend")
                 elif ch.lower() == "q":
                     for q in queues:
                         q.put("quit")
@@ -370,85 +367,21 @@ class QuitSession(Exception):
     pass
 
 
-def _snooze_prompt(snooze_sec: int, total_snoozed_sec: int) -> int:
+def run_phase(
+    label: str,
+    seconds: int,
+    timer_queue: queue.Queue,
+    extend_sec: int = 0,
+    abort_on_extend: bool = False,
+) -> bool:
     """
-    Interactive snooze prompt at end of a work phase.
+    Render a progress bar for *seconds*.
 
-    Each press of 'z' adds snooze_sec to the accumulated total.
-    After 3 s of no input the current total is confirmed (0 = go to break).
-    Returns total extra seconds to snooze (0 means start break now).
+    - extend_sec > 0: 'a' adds that many seconds to work phases.
+    - abort_on_extend=True: 'a' during break immediately exits the phase (returns False).
+
+    Returns True on normal completion, False if aborted early via 'a'.
     """
-    import select
-    import termios
-    import tty
-
-    snooze_min = snooze_sec // 60
-    accumulated = 0
-    CONFIRM_TIMEOUT = 3  # seconds of silence before confirming
-
-    if total_snoozed_sec >= 2 * snooze_sec:
-        extra_min = total_snoozed_sec // 60
-        print(
-            f"\n⚠️   You've snoozed ~{extra_min} extra min — "
-            "cognitive depletion is invisible during flow. Consider a proper break soon."
-        )
-
-    def _render():
-        acc_min = accumulated // 60
-        if accumulated == 0:
-            line = (
-                f"\r🍅  Time for a break!  [z] snooze +{snooze_min} min  "
-                f"[Enter] start break  (auto in {CONFIRM_TIMEOUT}s)   "
-            )
-        else:
-            line = (
-                f"\r😴  Snooze: +{acc_min} min  [z] add {snooze_min} more  "
-                f"[Enter] confirm  (auto-confirm in {CONFIRM_TIMEOUT}s)   "
-            )
-        print(line, end="", flush=True)
-
-    # Windows fallback — no timeout, but incremental z still works
-    if os.name == "nt":
-        import msvcrt
-        _render()
-        while True:
-            if msvcrt.kbhit():
-                ch = msvcrt.getwch().lower()
-                if ch == "z":
-                    accumulated += snooze_sec
-                    _render()
-                elif ch in ("\r", "\n", ""):
-                    break
-        print()
-        return accumulated
-
-    fd = sys.stdin.fileno()
-    old_attrs = termios.tcgetattr(fd)
-    try:
-        tty.setcbreak(fd)
-        _render()
-        while True:
-            r, _, _ = select.select([sys.stdin], [], [], CONFIRM_TIMEOUT)
-            if not r:
-                # timeout — confirm whatever we have
-                break
-            ch = sys.stdin.read(1).lower()
-            if ch == "z":
-                accumulated += snooze_sec
-                _render()
-            elif ch in ("\r", "\n", "q"):
-                if ch == "q":
-                    accumulated = 0  # treat quit-intent as "go to break"
-                break
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
-
-    print()  # newline after the inline prompt
-    return accumulated
-
-
-def run_phase(label: str, seconds: int, timer_queue: queue.Queue) -> None:
-    """Render a progress bar for *seconds*."""
     with Progress(
         TextColumn(f"[bold]{label}"),
         BarColumn(),
@@ -461,42 +394,53 @@ def run_phase(label: str, seconds: int, timer_queue: queue.Queue) -> None:
         start_time = time.monotonic()
 
         while not prog.finished:
-            # Check for pause/unpause commands
             try:
                 cmd = timer_queue.get_nowait()
                 if cmd == "quit":
                     raise QuitSession()
                 if cmd == "toggle_pause":
                     if not paused:
-                        # entering pause
                         paused = True
                         pause_start = time.monotonic()
                     else:
-                        # leaving pause
                         paused = False
                         if pause_start is not None:
                             total_paused_time += time.monotonic() - pause_start
                             pause_start = None
+                if cmd == "extend":
+                    if abort_on_extend:
+                        return False
+                    if extend_sec > 0:
+                        seconds += extend_sec
+                        prog.update(task, total=seconds)
+                        snooze_min = extend_sec // 60
+                        print(f"\n⏱️  +{snooze_min} min added", flush=True)
             except queue.Empty:
                 pass
 
             if not paused:
-                # Calculate actual elapsed time excluding paused periods
                 actual_elapsed = time.monotonic() - start_time - total_paused_time
                 if actual_elapsed >= 1.0:
                     time.sleep(1)
                     prog.update(task, advance=1)
-                    # Update the remaining time display
                     remaining = seconds - int(actual_elapsed)
                     if remaining >= 0:
-                        prog.tasks[
-                            task
-                        ].description = f"0:{remaining // 60:02d}:{remaining % 60:02d}"
+                        prog.tasks[task].description = f"0:{remaining // 60:02d}:{remaining % 60:02d}"
                 else:
                     time.sleep(0.1)
             else:
-                # When paused, sleep briefly to lower CPU usage
                 time.sleep(0.1)
+
+    return True
+
+
+def _drain_queue(q: queue.Queue) -> None:
+    """Discard all pending items to prevent stale commands crossing phase boundaries."""
+    while True:
+        try:
+            q.get_nowait()
+        except queue.Empty:
+            break
 
 
 def run_cycle(
@@ -509,78 +453,91 @@ def run_cycle(
     remaining_work_sec: int | None = None,
     spotify_player=None,
     snooze_sec: int = 0,
-    listener_suspend: threading.Event | None = None,
 ) -> None:
     """Single work → break cycle."""
-    # ---- Work Phase (with optional snooze loop) ----
-    total_snoozed_sec = 0
     total_work = remaining_work_sec if remaining_work_sec is not None else work_sec
 
+    # ---- Work Phase ----
+    music_stop = threading.Event()
+    if spotify_player:
+        from pomodoro.spotify_player import spotify_player_loop
+
+        music_thread = threading.Thread(
+            target=spotify_player_loop,
+            args=(spotify_player, control_queue, music_stop),
+            daemon=True,
+        )
+    else:
+        music_thread = threading.Thread(
+            target=music_player_loop,
+            args=(playlist, control_queue, True, music_stop),
+            daemon=True,
+        )
+    music_thread.start()
+    run_phase("Work", total_work, timer_queue, extend_sec=snooze_sec)
+
+    music_stop.set()
+    if spotify_player:
+        spotify_player.pause()
+    else:
+        pygame.mixer.music.stop()
+
+    # Drain queues so stale commands don't bleed into the break phase
+    _drain_queue(control_queue)
+    _drain_queue(timer_queue)
+
+    beep()
+    print("\n🛀  Starting break…\n")
+
+    # ---- Break Phase (loops on snooze) ----
     while True:
-        music_stop = threading.Event()
+        if break_sound:
+            try:
+                pygame.mixer.music.load(break_sound)
+                pygame.mixer.music.play(-1)
+            except Exception as exc:  # noqa: BLE001
+                print(f"[!] Couldn't play break sound: {exc}")
+
+        completed = run_phase("Break", break_sec, timer_queue, abort_on_extend=snooze_sec > 0)
+
+        pygame.mixer.music.stop()
+        _drain_queue(control_queue)
+        _drain_queue(timer_queue)
+
+        if completed:
+            beep()
+            print("\n✅  Break over — back to work!\n")
+            break
+
+        # 'a' pressed during break → snooze work session, then back to break
+        snooze_min = snooze_sec // 60
+        print(f"\n⏱️  Snooze — +{snooze_min} min work…\n")
+
+        snooze_stop = threading.Event()
         if spotify_player:
             from pomodoro.spotify_player import spotify_player_loop
-
-            music_thread = threading.Thread(
+            snooze_thread = threading.Thread(
                 target=spotify_player_loop,
-                args=(spotify_player, control_queue, music_stop),
+                args=(spotify_player, control_queue, snooze_stop),
                 daemon=True,
             )
         else:
-            music_thread = threading.Thread(
+            snooze_thread = threading.Thread(
                 target=music_player_loop,
-                args=(playlist, control_queue, True, music_stop),
+                args=(playlist, control_queue, True, snooze_stop),
                 daemon=True,
             )
-        music_thread.start()
-        run_phase("Work" if total_snoozed_sec == 0 else "Snooze", total_work, timer_queue)
-
-        music_stop.set()
+        snooze_thread.start()
+        run_phase("Work", snooze_sec, timer_queue, extend_sec=snooze_sec)
+        snooze_stop.set()
         if spotify_player:
             spotify_player.pause()
         else:
             pygame.mixer.music.stop()
-
-        # Drain control_queue to avoid stale commands leaking into next phase
-        while not control_queue.empty():
-            try:
-                control_queue.get_nowait()
-            except queue.Empty:
-                break
-
+        _drain_queue(control_queue)
+        _drain_queue(timer_queue)
         beep()
-
-        # Snooze prompt (only if snooze is enabled)
-        if snooze_sec > 0:
-            if listener_suspend is not None:
-                listener_suspend.set()
-            try:
-                extra = _snooze_prompt(snooze_sec, total_snoozed_sec)
-            finally:
-                if listener_suspend is not None:
-                    listener_suspend.clear()
-            if extra > 0:
-                total_snoozed_sec += extra
-                total_work = extra
-                continue  # restart work phase for snooze duration
-
-        break  # proceed to break
-
-    print("\n🛀  Starting break…\n")
-
-    # ---- Break Phase ----
-    if break_sound:
-        try:
-            pygame.mixer.music.load(break_sound)
-            pygame.mixer.music.play(-1)
-        except Exception as exc:  # noqa: BLE001
-            print(f"[!] Couldn't play break sound: {exc}")
-
-    run_phase("Break", break_sec, timer_queue)
-
-    pygame.mixer.music.stop()
-    beep()
-    print("\n✅  Break over — back to work!\n")
+        print("\n🛀  Back to break…\n")
 
 
 # --------------------------------------------------------------------------- #
@@ -624,9 +581,9 @@ def main() -> None:
     parser.add_argument(
         "--snooze",
         type=int,
-        default=10,
+        default=5,
         metavar="N",
-        help="snooze duration in minutes when prompted at end of work phase (default: 10; 0 to disable)",
+        help="snooze duration in minutes when prompted at end of work phase (default: 5; 0 to disable)",
     )
     parser.add_argument(
         "--spotify",
@@ -712,9 +669,8 @@ def main() -> None:
     control_queue: queue.Queue = queue.Queue()
     timer_queue: queue.Queue = queue.Queue()
     stop_event = threading.Event()
-    listener_suspend = threading.Event()
-    start_key_listener([control_queue, timer_queue], stop_event, listener_suspend)
-    snooze_hint = f", 'z' to snooze +{args.snooze} min (at end of work)" if args.snooze > 0 else ""
+    start_key_listener([control_queue, timer_queue], stop_event)
+    snooze_hint = f", 'a' to add +{args.snooze} min work" if args.snooze > 0 else ""
     print(
         f"🎹  Press 's' to skip, 'p' to pause/unpause, 'i' to ignore song, 'q' to quit{snooze_hint}\n"
     )
@@ -742,12 +698,11 @@ def main() -> None:
                 remaining,
                 spotify_player=spotify_player,
                 snooze_sec=args.snooze * 60,
-                listener_suspend=listener_suspend,
             )
 
         # ---------- Long break ----------
         print(f"\n🎉  {args.cycles} cycles done — enjoy a longer break!")
-        run_phase("Long Break", args.long * 60, timer_queue)
+        run_phase("Long Break", args.long * 60, timer_queue, abort_on_extend=args.snooze > 0)
         beep()
         print("\n🏁  All done! Great job.")
     except (QuitSession, KeyboardInterrupt):
