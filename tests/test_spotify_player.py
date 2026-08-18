@@ -33,9 +33,14 @@ class FakeSpotifyClient:
 
 class SpotifyPlayerTransientErrorTest(unittest.TestCase):
     def make_player(self, fake_spotify):
-        player = SpotifyPlayer()
+        player = SpotifyPlayer.__new__(SpotifyPlayer)
+        player.playlist_uri = None
+        player.device_name = None
         player.sp = fake_spotify
         player._device_id = "device-1"
+        player._paused = False
+        player._last_track = None
+        player._api_warning_times = {}
         return player
 
     def test_timeout_is_transient_spotify_error(self):
