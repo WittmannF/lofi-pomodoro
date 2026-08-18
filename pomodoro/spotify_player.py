@@ -19,12 +19,41 @@ except ImportError:
     SpotifyPKCE = None
     SpotifyException = Exception
 
+try:
+    from requests.exceptions import RequestException
+except ImportError:
+    RequestException = None
+
+try:
+    from urllib3.exceptions import HTTPError as Urllib3HTTPError
+except ImportError:
+    Urllib3HTTPError = None
+
 
 SCOPES = "user-modify-playback-state user-read-playback-state user-read-currently-playing"
 DEFAULT_REDIRECT_URI = "http://127.0.0.1:8888/callback"
 CACHE_PATH = os.path.join(os.path.expanduser("~"), ".cache", "pomodoro-spotify")
 CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".config", "pomodoro")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "spotify.json")
+TRANSIENT_SPOTIFY_HTTP_STATUSES = {408, 429, 500, 502, 503, 504}
+API_WARNING_COOLDOWN_SEC = 30
+
+
+NETWORK_EXCEPTIONS = tuple(
+    exc
+    for exc in (RequestException, Urllib3HTTPError, TimeoutError)
+    if exc is not None
+)
+
+
+def is_transient_spotify_error(error: Exception) -> bool:
+    if is_spotify_api_exception(error):
+        return getattr(error, "http_status", None) in TRANSIENT_SPOTIFY_HTTP_STATUSES
+    return isinstance(error, NETWORK_EXCEPTIONS)
+
+
+def is_spotify_api_exception(error: Exception) -> bool:
+    return SpotifyException is not Exception and isinstance(error, SpotifyException)
 
 
 def load_config() -> dict:
@@ -159,6 +188,16 @@ class SpotifyPlayer:
         self._device_id = None
         self._paused = False
         self._last_track = None
+        self._api_warning_times: dict[str, float] = {}
+
+    def _warn_api_error(self, action: str, error: Exception) -> None:
+        now = time.monotonic()
+        last_warning = self._api_warning_times.get(action, 0)
+        if now - last_warning < API_WARNING_COOLDOWN_SEC:
+            return
+
+        self._api_warning_times[action] = now
+        print(f"[Spotify] Could not {action}: {error}")
 
     def authenticate(self) -> bool:
         client_id = get_client_id()
@@ -195,9 +234,14 @@ class SpotifyPlayer:
     def _resolve_device(self) -> str | None:
         try:
             devices = self.sp.devices()
-        except SpotifyException as e:
-            print(f"[Spotify] Error fetching devices: {e}")
-            return None
+        except Exception as e:
+            if is_transient_spotify_error(e):
+                self._warn_api_error("fetch Spotify devices", e)
+                return None
+            if is_spotify_api_exception(e):
+                print(f"[Spotify] Error fetching devices: {e}")
+                return None
+            raise
 
         if not devices or not devices.get("devices"):
             print("[Spotify] No active devices found. Open Spotify on any device first.")
@@ -251,7 +295,12 @@ class SpotifyPlayer:
             self.sp.shuffle(True, device_id=self._device_id)
             self.sp.start_playback(**kwargs)
             self._paused = False
-        except SpotifyException as e:
+        except Exception as e:
+            if is_transient_spotify_error(e):
+                self._warn_api_error("start Spotify playback", e)
+                return
+            if not is_spotify_api_exception(e):
+                raise
             if e.http_status == 403:
                 print("[Spotify] Error: Spotify Premium is required for playback control.")
                 raise
@@ -264,22 +313,40 @@ class SpotifyPlayer:
         try:
             self.sp.pause_playback(device_id=self._device_id)
             self._paused = True
-        except SpotifyException as e:
-            if "Player command failed: Restriction violated" in str(e):
+        except Exception as e:
+            if is_transient_spotify_error(e):
+                self._warn_api_error("pause Spotify playback", e)
                 return
+            if (
+                is_spotify_api_exception(e)
+                and "Player command failed: Restriction violated" in str(e)
+            ):
+                return
+            if not is_spotify_api_exception(e):
+                raise
             print(f"[Spotify] Pause error: {e}")
 
     def resume(self) -> None:
         try:
             self.sp.start_playback(device_id=self._device_id)
             self._paused = False
-        except SpotifyException as e:
+        except Exception as e:
+            if is_transient_spotify_error(e):
+                self._warn_api_error("resume Spotify playback", e)
+                return
+            if not is_spotify_api_exception(e):
+                raise
             print(f"[Spotify] Resume error: {e}")
 
     def skip(self) -> None:
         try:
             self.sp.next_track(device_id=self._device_id)
-        except SpotifyException as e:
+        except Exception as e:
+            if is_transient_spotify_error(e):
+                self._warn_api_error("skip Spotify track", e)
+                return
+            if not is_spotify_api_exception(e):
+                raise
             print(f"[Spotify] Skip error: {e}")
 
     def now_playing(self) -> str | None:
@@ -291,15 +358,25 @@ class SpotifyPlayer:
             artists = ", ".join(a["name"] for a in item.get("artists", []))
             track = item.get("name", "Unknown")
             return f"{artists} – {track}" if artists else track
-        except SpotifyException:
-            return None
+        except Exception as e:
+            if is_transient_spotify_error(e):
+                self._warn_api_error("poll Spotify playback", e)
+                return None
+            if is_spotify_api_exception(e):
+                return None
+            raise
 
     def is_playing(self) -> bool:
         try:
             current = self.sp.current_playback()
             return bool(current and current.get("is_playing"))
-        except SpotifyException:
-            return False
+        except Exception as e:
+            if is_transient_spotify_error(e):
+                self._warn_api_error("poll Spotify playback", e)
+                return False
+            if is_spotify_api_exception(e):
+                return False
+            raise
 
 
 def spotify_player_loop(
