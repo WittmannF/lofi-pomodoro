@@ -298,7 +298,7 @@ class SpotifyPlayer:
         except Exception as e:
             if is_transient_spotify_error(e):
                 self._warn_api_error("start Spotify playback", e)
-                raise
+                return
             if not is_spotify_api_exception(e):
                 raise
             if e.http_status == 403:
