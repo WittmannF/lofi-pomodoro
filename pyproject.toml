@@ -30,6 +30,7 @@ dependencies = [
     "pynput",
     "psutil>=5.9.0",
     "platformdirs>=4.0.0",
+    "truststore>=0.10.0",
 ]
 
 [project.optional-dependencies]

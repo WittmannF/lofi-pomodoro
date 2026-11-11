@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import ssl
 import tempfile
 import urllib.error
 import urllib.request
@@ -11,11 +12,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from platformdirs import user_cache_path
+import truststore
 
 REPOSITORY = "WittmannF/lofi-pomodoro"
 PLAYLIST_PATH = "pomodoro/default-playlist"
 PLAYLIST_REF = "main"
 USER_AGENT = "lofi-pomodoro"
+TLS_CONTEXT = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
 
 
 def default_playlist_dir() -> Path:
@@ -32,7 +35,7 @@ def _get_playlist_files() -> list[dict[str, str]]:
         url,
         headers={"Accept": "application/vnd.github+json", "User-Agent": USER_AGENT},
     )
-    with urllib.request.urlopen(request, timeout=30) as response:
+    with urllib.request.urlopen(request, timeout=30, context=TLS_CONTEXT) as response:
         content = json.load(response)
     return [
         item
@@ -52,7 +55,9 @@ def _download_track(item: dict[str, str], destination: Path) -> None:
     )
     try:
         with os.fdopen(file_descriptor, "wb") as output:
-            with urllib.request.urlopen(request, timeout=120) as response:
+            with urllib.request.urlopen(
+                request, timeout=120, context=TLS_CONTEXT
+            ) as response:
                 while chunk := response.read(1024 * 1024):
                     output.write(chunk)
         os.replace(temporary_name, destination)
