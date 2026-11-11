@@ -10,10 +10,12 @@ Dependencies:
 """
 
 import argparse
+from contextlib import contextmanager
 import os
 import queue
 import random
 import sys
+import tempfile
 import threading
 import time
 import array
@@ -39,6 +41,28 @@ BREAK_SOUND_OPTIONS = {
 
 # Ignored songs file
 IGNORED_SONGS_FILE = ".ignored_songs"
+MPG123_EMPTY_COMMENT_WARNING = b"No comment text / valid description?"
+_NATIVE_STDERR_LOCK = threading.Lock()
+
+
+@contextmanager
+def filter_empty_id3_comment_warning():
+    """Hide the known mpg123 ID3 warning while preserving other native stderr."""
+    with _NATIVE_STDERR_LOCK, tempfile.TemporaryFile() as captured_stderr:
+        sys.stderr.flush()
+        original_stderr = os.dup(2)
+        try:
+            os.dup2(captured_stderr.fileno(), 2)
+            yield
+        finally:
+            sys.stderr.flush()
+            os.dup2(original_stderr, 2)
+            os.close(original_stderr)
+
+            captured_stderr.seek(0)
+            for line in captured_stderr:
+                if MPG123_EMPTY_COMMENT_WARNING not in line:
+                    os.write(2, line)
 
 
 # --------------------------------------------------------------------------- #
@@ -223,7 +247,8 @@ def music_player_loop(
 
         print(f"\n🎵  Now playing: {os.path.basename(track)}")
         try:
-            pygame.mixer.music.load(track)
+            with filter_empty_id3_comment_warning():
+                pygame.mixer.music.load(track)
             pygame.mixer.music.play()
         except Exception as exc:  # noqa: BLE001
             print(f"[!] Couldn't play {track}: {exc}")
@@ -500,7 +525,8 @@ def run_cycle(
     while True:
         if break_sound:
             try:
-                pygame.mixer.music.load(break_sound)
+                with filter_empty_id3_comment_warning():
+                    pygame.mixer.music.load(break_sound)
                 pygame.mixer.music.play(-1)
             except Exception as exc:  # noqa: BLE001
                 print(f"[!] Couldn't play break sound: {exc}")
