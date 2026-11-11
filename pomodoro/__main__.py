@@ -10,10 +10,12 @@ Dependencies:
 """
 
 import argparse
+from contextlib import contextmanager
 import os
 import queue
 import random
 import sys
+import tempfile
 import threading
 import time
 import array
@@ -21,6 +23,9 @@ import math
 
 from rich.progress import Progress, TextColumn, BarColumn, TimeRemainingColumn
 import pygame
+from platformdirs import user_state_path
+
+from pomodoro.playlist_cache import ensure_default_playlist
 
 # Global variables
 SUPPORTED_AUDIO_EXTENSIONS = (".mp3", ".wav", ".ogg")
@@ -36,6 +41,28 @@ BREAK_SOUND_OPTIONS = {
 
 # Ignored songs file
 IGNORED_SONGS_FILE = ".ignored_songs"
+MPG123_EMPTY_COMMENT_WARNING = b"No comment text / valid description?"
+_NATIVE_STDERR_LOCK = threading.Lock()
+
+
+@contextmanager
+def filter_empty_id3_comment_warning():
+    """Hide the known mpg123 ID3 warning while preserving other native stderr."""
+    with _NATIVE_STDERR_LOCK, tempfile.TemporaryFile() as captured_stderr:
+        sys.stderr.flush()
+        original_stderr = os.dup(2)
+        try:
+            os.dup2(captured_stderr.fileno(), 2)
+            yield
+        finally:
+            sys.stderr.flush()
+            os.dup2(original_stderr, 2)
+            os.close(original_stderr)
+
+            captured_stderr.seek(0)
+            for line in captured_stderr:
+                if MPG123_EMPTY_COMMENT_WARNING not in line:
+                    os.write(2, line)
 
 
 # --------------------------------------------------------------------------- #
@@ -123,15 +150,19 @@ def load_music_files(folder: str) -> list[str]:
 
 
 def get_default_playlist() -> list[str]:
-    """Tracks shipped in ./default-playlist/ (optional)."""
-    project_root = os.path.dirname(os.path.abspath(__file__))
-    return load_music_files(os.path.join(project_root, "default-playlist"))
+    """Load the default tracks from the per-user cache, downloading on first use."""
+    try:
+        return load_music_files(str(ensure_default_playlist()))
+    except RuntimeError as e:
+        print(f"[!] {e}")
+        return []
 
 
 def get_ignored_songs_file_path() -> str:
-    """Get the path to the ignored songs file in project root."""
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    return os.path.join(project_root, IGNORED_SONGS_FILE)
+    """Get a writable per-user path for the ignored songs list."""
+    state_dir = user_state_path("lofi-pomodoro")
+    os.makedirs(state_dir, exist_ok=True)
+    return os.path.join(state_dir, IGNORED_SONGS_FILE)
 
 
 def load_ignored_songs() -> set[str]:
@@ -216,7 +247,8 @@ def music_player_loop(
 
         print(f"\n🎵  Now playing: {os.path.basename(track)}")
         try:
-            pygame.mixer.music.load(track)
+            with filter_empty_id3_comment_warning():
+                pygame.mixer.music.load(track)
             pygame.mixer.music.play()
         except Exception as exc:  # noqa: BLE001
             print(f"[!] Couldn't play {track}: {exc}")
@@ -493,7 +525,8 @@ def run_cycle(
     while True:
         if break_sound:
             try:
-                pygame.mixer.music.load(break_sound)
+                with filter_empty_id3_comment_warning():
+                    pygame.mixer.music.load(break_sound)
                 pygame.mixer.music.play(-1)
             except Exception as exc:  # noqa: BLE001
                 print(f"[!] Couldn't play break sound: {exc}")

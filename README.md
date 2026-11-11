@@ -1,12 +1,12 @@
 # lofi-pomodoro
 
-A CLI Pomodoro timer that plays music during work sessions — use the bundled lo-fi playlist or control your Spotify directly from the terminal.
+A CLI Pomodoro timer that plays music during work sessions — download and cache the default lo-fi playlist on first use, or control your Spotify directly from the terminal.
 
 ## Features
 
 * **CLI Progress Bar**: Live countdown and progress bar using [Rich](https://github.com/Textualize/rich).
 * **Spotify Mode**: Control your Spotify playback during work sessions (requires Premium).
-* **Lo-fi Audio Playback**: Bundled playlist of 250+ open-license lo-fi tracks via pygame.
+* **Lo-fi Audio Playback**: Downloads the default open-license playlist on first use and caches it for later sessions.
 * **Break Sounds**: Ambient sounds (rain, fireplace, wind) play automatically during breaks.
 * **Configurable Durations**: Customize work, short break, and long break lengths.
 * **Cycle Support**: Set the number of work/break cycles before a long break.
@@ -17,20 +17,19 @@ A CLI Pomodoro timer that plays music during work sessions — use the bundled l
 
 ## Quick Start
 
-**Local mode** (bundled playlist, no setup needed):
+**Install for your user** (available in every terminal session):
 
 ```bash
-git clone https://github.com/WittmannF/lofi-pomodoro.git
-cd lofi-pomodoro
-uv venv .venv && source .venv/bin/activate
-uv pip install -e .
+uv tool install git+https://github.com/WittmannF/lofi-pomodoro.git
 pomodoro
 ```
+
+The first local-music run downloads the default playlist into your user cache. Later sessions reuse it. Use `uv tool upgrade lofi-pomodoro` to install the latest repository version.
 
 **Spotify mode** (controls your Spotify app):
 
 ```bash
-uv pip install -e ".[spotify]"
+uv tool install --with spotipy git+https://github.com/WittmannF/lofi-pomodoro.git
 pomodoro --spotify --spotify-playlist lofi
 ```
 
@@ -43,7 +42,7 @@ On first run it will ask for your Spotify Client ID and open the browser for aut
 ### Basic
 
 ```bash
-pomodoro                                        # bundled lo-fi playlist
+pomodoro                                        # downloads/caches the default playlist on first use
 pomodoro --music-folder ~/my-music              # custom folder
 pomodoro --work 50 --short 10 --long 30         # custom durations
 pomodoro --resume 15                            # resume with 15 min left
@@ -61,7 +60,7 @@ Control your Spotify playback during work sessions. Break sounds (rain, fireplac
 1. Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) and create an app
 2. Set the Redirect URI to `http://127.0.0.1:8888/callback`
 3. Check "Web API" and save
-4. Install the Spotify extra: `uv pip install -e ".[spotify]"`
+4. Install with Spotify support: `uv tool install --with spotipy git+https://github.com/WittmannF/lofi-pomodoro.git`
 
 **Run:**
 
@@ -112,7 +111,7 @@ During work sessions:
 | `--long` | Long break duration in minutes | `15` |
 | `--cycles` | Cycles before a long break | `4` |
 | `--resume` | Resume with X minutes left in first cycle | — |
-| `--music-folder` | Custom music folder | bundled playlist |
+| `--music-folder` | Custom music folder | cached default playlist |
 | `--no-work-music` | Disable work music | `false` |
 | `--no-break-sound` | Disable break sounds | `false` |
 | `--break-sound` | Break sound: `rain`, `fireplace`, `wind`, `soft-wind`, `random`, or path | `random` |
@@ -127,7 +126,7 @@ During work sessions:
 
 ## Music Sources
 
-The bundled playlist has 250+ tracks. You can expand it with the included scripts:
+The default playlist is downloaded from the repository and cached in your user cache directory. You can expand a local checkout with the included scripts:
 
 | Script | Source | Install |
 |--------|--------|---------|
