@@ -24,12 +24,11 @@ uv tool install git+https://github.com/WittmannF/lofi-pomodoro.git
 pomodoro
 ```
 
-The first local-music run downloads the default playlist into your user cache. Later sessions reuse it. Use `uv tool upgrade lofi-pomodoro` to install the latest repository version.
+The first local-music run downloads the default playlist into your user cache. Later sessions reuse it. To refresh a Git install, run `uv tool install --force git+https://github.com/WittmannF/lofi-pomodoro.git`.
 
 **Spotify mode** (controls your Spotify app):
 
 ```bash
-uv tool install --with spotipy git+https://github.com/WittmannF/lofi-pomodoro.git
 pomodoro --spotify --spotify-playlist lofi
 ```
 
@@ -60,7 +59,7 @@ Control your Spotify playback during work sessions. Break sounds (rain, fireplac
 1. Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) and create an app
 2. Set the Redirect URI to `http://127.0.0.1:8888/callback`
 3. Check "Web API" and save
-4. Install with Spotify support: `uv tool install --with spotipy git+https://github.com/WittmannF/lofi-pomodoro.git`
+4. Spotify support is included in the standard installation; no separate dependency install is needed.
 
 **Run:**
 
