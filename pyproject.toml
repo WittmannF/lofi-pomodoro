@@ -3,10 +3,10 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "pomodoro"
+name = "lofi-pomodoro"
 version = "0.1.0"
 authors = [
-    { name = "Your Name", email = "your.email@example.com" }
+    { name = "WittmannF" }
 ]
 description = "A CLI Pomodoro timer with lofi music"
 readme = "README.md"
@@ -18,9 +18,6 @@ classifiers = [
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.7",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Topic :: Utilities",
@@ -32,6 +29,7 @@ dependencies = [
     "numpy>=1.21.0",
     "pynput",
     "psutil>=5.9.0",
+    "platformdirs>=4.0.0",
 ]
 
 [project.optional-dependencies]
@@ -58,16 +56,23 @@ pomodoro = "pomodoro.__main__:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["pomodoro"]
-include = [
-    "default-playlist/*.mp3",
+exclude = [
+    "pomodoro/default-playlist/**",
+    "pomodoro/songs-with-error/**",
 ]
 
 [tool.hatch.build.targets.sdist]
-include = [
-    "default-playlist/*.mp3",
+only-include = [
+    "pomodoro",
+    "pomodoro/break-sounds",
+    "README.md",
+    "LICENSE",
+    "pyproject.toml",
+]
+exclude = [
+    "pomodoro/default-playlist/**",
+    "pomodoro/songs-with-error/**",
 ]
 
-[tool.hatch.build]
-include = [
-    "default-playlist/*.mp3",
-] 
+[tool.hatch.build.targets.sdist.force-include]
+"pomodoro/break-sounds" = "pomodoro/break-sounds"
