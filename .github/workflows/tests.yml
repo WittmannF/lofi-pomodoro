@@ -1,0 +1,41 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+
+      - name: Install Python
+        run: uv python install "${{ matrix.python-version }}"
+
+      - name: Install project
+        run: |
+          uv venv --python "${{ matrix.python-version }}"
+          uv pip install --python .venv/bin/python -e .
+
+      - name: Run unit tests
+        run: .venv/bin/python -m unittest discover -s tests -v
+
+      - name: Smoke-test CLI commands
+        run: |
+          .venv/bin/pomodoro --help
+          .venv/bin/pomodoro --spotify --help
+          .venv/bin/pomodoro --spotify lofi --help
+          .venv/bin/pomodoro --spotify 'spotify:playlist:37i9dQZF1DX0SM0LYsmbMT' --help

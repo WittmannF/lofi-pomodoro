@@ -36,7 +36,7 @@ The first local-music run downloads the default playlist into your user cache. L
 **Spotify mode** (controls your Spotify app):
 
 ```bash
-pomodoro --spotify --spotify-playlist lofi
+pomodoro --spotify lofi
 ```
 
 On first run it will ask for your Spotify Client ID and open the browser for authorization. After that it's instant.
@@ -72,11 +72,12 @@ Control your Spotify playback during work sessions. Break sounds (rain, fireplac
 
 ```bash
 pomodoro --spotify                                                        # resumes whatever is playing
-pomodoro --spotify --spotify-playlist lofi                                # built-in preset
-pomodoro --spotify --spotify-playlist spotify:playlist:37i9dQZF1DX0SM0LYsmbMT  # custom URI
+pomodoro --spotify lofi                                                   # built-in preset
+pomodoro --spotify spotify:playlist:37i9dQZF1DX0SM0LYsmbMT                 # custom URI
 ```
 
 Built-in playlist presets: `lofi`, `lofi-beats`, `jazz`, `deep-focus`, `chill`.
+The previous `--spotify-playlist PLAYLIST` syntax remains supported.
 
 **Adding your own presets** — edit `~/.config/pomodoro/spotify.json`:
 
@@ -123,8 +124,8 @@ During work sessions:
 | `--break-sound` | Break sound: `rain`, `fireplace`, `wind`, `soft-wind`, `random`, or path | `random` |
 | `--volume` | Volume 0.0–1.0 | `1.0` |
 | `--reset-ignored` | Clear the ignored songs list | — |
-| `--spotify` | Enable Spotify mode (requires Premium) | `false` |
-| `--spotify-playlist` | Preset name or full Spotify URI | active playback |
+| `--spotify [PLAYLIST]` | Use Spotify; optionally pass a preset or URI. Without a playlist, keep or resume current playback. | — |
+| `--spotify-playlist` | Legacy alias for passing a preset or URI | — |
 | `--spotify-device` | Device name, number, or ID | active device |
 | `--spotify-devices` | List available Spotify devices and exit | — |
 

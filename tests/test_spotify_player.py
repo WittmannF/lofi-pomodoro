@@ -6,11 +6,14 @@ from pomodoro.spotify_player import SpotifyPlayer, is_transient_spotify_error
 
 
 class FakeSpotifyClient:
-    def __init__(self, playback_responses=None):
+    def __init__(self, playback_responses=None, raise_on_commands=True):
         self.playback_responses = list(playback_responses or [])
+        self.raise_on_commands = raise_on_commands
         self.pause_calls = 0
         self.resume_calls = 0
         self.skip_calls = 0
+        self.shuffle_calls = []
+        self.start_calls = []
 
     def current_playback(self):
         response = self.playback_responses.pop(0)
@@ -20,11 +23,19 @@ class FakeSpotifyClient:
 
     def pause_playback(self, device_id=None):
         self.pause_calls += 1
-        raise TimeoutError("read timed out")
+        if self.raise_on_commands:
+            raise TimeoutError("read timed out")
 
     def start_playback(self, device_id=None, **kwargs):
         self.resume_calls += 1
-        raise TimeoutError("read timed out")
+        self.start_calls.append({"device_id": device_id, **kwargs})
+        if self.raise_on_commands:
+            raise TimeoutError("read timed out")
+
+    def shuffle(self, state, device_id=None):
+        self.shuffle_calls.append({"state": state, "device_id": device_id})
+        if self.raise_on_commands:
+            raise TimeoutError("read timed out")
 
     def next_track(self, device_id=None):
         self.skip_calls += 1
@@ -86,6 +97,57 @@ class SpotifyPlayerTransientErrorTest(unittest.TestCase):
         self.assertEqual(fake_spotify.pause_calls, 1)
         self.assertEqual(fake_spotify.resume_calls, 1)
         self.assertEqual(fake_spotify.skip_calls, 1)
+
+    def test_play_keeps_current_playback_unchanged(self):
+        fake_spotify = FakeSpotifyClient(
+            [{"is_playing": True, "item": {"name": "Current track"}}],
+            raise_on_commands=False,
+        )
+        player = self.make_player(fake_spotify)
+
+        player.play()
+
+        self.assertEqual(fake_spotify.start_calls, [])
+        self.assertEqual(fake_spotify.shuffle_calls, [])
+
+    def test_play_resumes_paused_current_track_without_changing_context(self):
+        fake_spotify = FakeSpotifyClient(
+            [{"is_playing": False, "item": {"name": "Paused track"}}],
+            raise_on_commands=False,
+        )
+        player = self.make_player(fake_spotify)
+
+        player.play()
+
+        self.assertEqual(fake_spotify.start_calls, [{"device_id": "device-1"}])
+        self.assertEqual(fake_spotify.shuffle_calls, [])
+
+    def test_play_starts_selected_playlist_and_enables_shuffle(self):
+        fake_spotify = FakeSpotifyClient(raise_on_commands=False)
+        player = self.make_player(fake_spotify)
+        player.playlist_uri = "spotify:playlist:example"
+
+        player.play()
+
+        self.assertEqual(
+            fake_spotify.shuffle_calls,
+            [{"state": True, "device_id": "device-1"}],
+        )
+        self.assertEqual(
+            fake_spotify.start_calls,
+            [{"device_id": "device-1", "context_uri": "spotify:playlist:example"}],
+        )
+
+    def test_play_without_current_track_shows_guidance(self):
+        fake_spotify = FakeSpotifyClient([None], raise_on_commands=False)
+        player = self.make_player(fake_spotify)
+
+        output = io.StringIO()
+        with redirect_stdout(output):
+            player.play()
+
+        self.assertIn("Nothing is currently playing", output.getvalue())
+        self.assertEqual(fake_spotify.start_calls, [])
 
 
 if __name__ == "__main__":

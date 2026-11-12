@@ -290,11 +290,29 @@ class SpotifyPlayer:
 
     def play(self) -> None:
         try:
-            kwargs = {"device_id": self._device_id}
             if self.playlist_uri:
-                kwargs["context_uri"] = self.playlist_uri
-            self.sp.shuffle(True, device_id=self._device_id)
-            self.sp.start_playback(**kwargs)
+                self.sp.shuffle(True, device_id=self._device_id)
+                self.sp.start_playback(
+                    device_id=self._device_id,
+                    context_uri=self.playlist_uri,
+                )
+                self._paused = False
+                return
+
+            current = self.sp.current_playback()
+            if current and current.get("is_playing"):
+                # Leave the user's current track, queue, and shuffle setting alone.
+                self._paused = False
+                return
+            if not current or not current.get("item"):
+                print(
+                    "[Spotify] Nothing is currently playing. Start a track in Spotify "
+                    "or choose a playlist with --spotify PLAYLIST."
+                )
+                return
+
+            # A current item exists but is paused; resume it without changing context.
+            self.sp.start_playback(device_id=self._device_id)
             self._paused = False
         except Exception as e:
             if is_transient_spotify_error(e):
