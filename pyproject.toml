@@ -31,6 +31,7 @@ dependencies = [
     "psutil>=5.9.0",
     "platformdirs>=4.0.0",
     "truststore>=0.10.0",
+    "spotipy>=2.24.0",
 ]
 
 [project.optional-dependencies]
@@ -42,8 +43,6 @@ youtube = ["yt-dlp"]
 id3 = ["eyed3"]
 # scripts/generate_music.py
 elevenlabs = ["elevenlabs>=1.0", "pyyaml"]
-# spotify playback control (requires Spotify Premium)
-spotify = ["spotipy>=2.24.0"]
 # all optional script deps at once
 scripts = ["requests", "beautifulsoup4", "yt-dlp", "eyed3", "elevenlabs>=1.0", "pyyaml"]
 
