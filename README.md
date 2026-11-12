@@ -17,14 +17,21 @@ A CLI Pomodoro timer that plays music during work sessions — download and cach
 
 ## Quick Start
 
-**Install for your user** (available in every terminal session):
+The preferred way to install Lo-fi Pomodoro is with [uv](https://docs.astral.sh/uv/), which installs it as a command-line tool:
 
 ```bash
-uv tool install git+https://github.com/WittmannF/lofi-pomodoro.git
+uv tool install lofi-pomodoro
 pomodoro
 ```
 
-The first local-music run downloads the default playlist into your user cache. Later sessions reuse it. To refresh a Git install, run `uv tool install --force git+https://github.com/WittmannF/lofi-pomodoro.git`.
+Alternatively, you can install it with pip:
+
+```bash
+pip install lofi-pomodoro
+pomodoro
+```
+
+The first local-music run downloads the default playlist into your user cache. Later sessions reuse it. To upgrade a uv installation, run `uv tool upgrade lofi-pomodoro`.
 
 **Spotify mode** (controls your Spotify app):
 
