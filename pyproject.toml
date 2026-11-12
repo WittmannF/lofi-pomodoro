@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lofi-pomodoro"
-version = "0.1.1"
+version = "0.1.2"
 authors = [
     { name = "WittmannF" }
 ]
 description = "A CLI Pomodoro timer with lofi music"
 readme = "README.md"
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.10"
 license = "MIT"
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -22,12 +22,13 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Utilities",
 ]
 keywords = ["pomodoro", "timer", "productivity", "lofi", "music"]
 dependencies = [
     "rich>=10.0.0",
-    "pygame>=2.0.0",
+    "pygame-ce>=2.5.8",
     "numpy>=1.21.0",
     "pynput",
     "psutil>=5.9.0",
