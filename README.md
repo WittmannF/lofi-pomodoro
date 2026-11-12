@@ -2,6 +2,8 @@
 
 A CLI Pomodoro timer that plays music during work sessions — download and cache the default lo-fi playlist on first use, or control your Spotify directly from the terminal.
 
+![Lo-fi Pomodoro intro demo](docs/assets/intro.gif)
+
 ## Features
 
 * **CLI Progress Bar**: Live countdown and progress bar using [Rich](https://github.com/Textualize/rich).
@@ -75,6 +77,8 @@ pomodoro --spotify                                                        # resu
 pomodoro --spotify lofi                                                   # built-in preset
 pomodoro --spotify spotify:playlist:37i9dQZF1DX0SM0LYsmbMT                 # custom URI
 ```
+
+![Controlling Spotify playback with Lo-fi Pomodoro](docs/assets/spotify.gif)
 
 Built-in playlist presets: `lofi`, `lofi-beats`, `jazz`, `deep-focus`, `chill`.
 The previous `--spotify-playlist PLAYLIST` syntax remains supported.
