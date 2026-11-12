@@ -180,7 +180,8 @@ class SpotifyPlayer:
     def __init__(self, playlist_uri=None, device_name=None):
         if spotipy is None:
             raise RuntimeError(
-                "spotipy is not installed. Install with: uv pip install -e \".[spotify]\""
+                "Spotify support is missing Spotipy. Reinstall with: "
+                "uv tool install --force git+https://github.com/WittmannF/lofi-pomodoro.git"
             )
         self.playlist_uri = playlist_uri
         self.device_name = device_name
