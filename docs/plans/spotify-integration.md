@@ -40,8 +40,8 @@ Important constraints:
 
 | Flag | Default | Purpose |
 |------|---------|---------|
-| `--spotify` | false | Enable Spotify mode (replaces local music player) |
-| `--spotify-playlist` | user's active playback | Preset name (`lofi`, `deep-focus`, `chill`, `jazz`) or full Spotify URI |
+| `--spotify [PLAYLIST]` | current Spotify playback | Use Spotify; optionally pass a preset (`lofi`, `deep-focus`, `chill`, `jazz`) or full URI |
+| `--spotify-playlist` | — | Legacy alias for passing a preset or URI |
 | `--spotify-device` | active device | Target device by name, number (from `--spotify-devices`), or ID |
 | `--spotify-devices` | — | List available Spotify devices and exit |
 

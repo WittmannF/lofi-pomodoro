@@ -576,7 +576,7 @@ def run_cycle(
 # --------------------------------------------------------------------------- #
 #                                   MAIN                                      #
 # --------------------------------------------------------------------------- #
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="CLI Lo-fi Pomodoro Timer")
 
     parser.add_argument("--work", type=int, default=25, help="work minutes (25)")
@@ -620,13 +620,16 @@ def main() -> None:
     )
     parser.add_argument(
         "--spotify",
-        action="store_true",
-        help="use Spotify for work music (requires Premium; prompts for Client ID on first run)",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="PLAYLIST",
+        help="use Spotify; optionally pass a preset or playlist URI (otherwise keep current playback)",
     )
     parser.add_argument(
         "--spotify-playlist",
         type=str,
-        help="Spotify playlist: preset name (lofi, deep-focus, chill) or full URI",
+        help="legacy alias for passing a playlist after --spotify",
     )
     parser.add_argument(
         "--spotify-device",
@@ -638,6 +641,11 @@ def main() -> None:
         action="store_true",
         help="list available Spotify devices and exit",
     )
+    return parser
+
+
+def main() -> None:
+    parser = build_parser()
     args = parser.parse_args()
 
     if not 0.0 <= args.volume <= 1.0:
@@ -660,13 +668,20 @@ def main() -> None:
         print(f"\n⏱️  Resuming with {args.resume} minutes remaining in first work cycle")
 
     # ---------- Spotify mode ----------
+    spotify_enabled = args.spotify is not None
     spotify_player = None
-    if args.spotify:
+    if spotify_enabled:
         from pomodoro.spotify_player import SpotifyPlayer, resolve_playlist
 
         try:
-            playlist_uri = resolve_playlist(args.spotify_playlist)
-            if args.spotify_playlist and playlist_uri is None:
+            if args.spotify and args.spotify_playlist:
+                parser.error(
+                    "Pass the Spotify playlist either after --spotify or with "
+                    "--spotify-playlist, not both"
+                )
+            playlist_name = args.spotify or args.spotify_playlist
+            playlist_uri = resolve_playlist(playlist_name)
+            if playlist_name and playlist_uri is None:
                 sys.exit(1)
 
             spotify_player = SpotifyPlayer(
@@ -682,7 +697,7 @@ def main() -> None:
 
     # ---------- Load audio ----------
     playlist: list[str] = []
-    if not args.spotify and not args.no_work_music:
+    if not spotify_enabled and not args.no_work_music:
         if args.music_folder:
             playlist = load_music_files(args.music_folder)
         else:
